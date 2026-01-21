@@ -124,31 +124,9 @@ class FeedService
     private function getChannelIdFromUsername(string $username): ?string
     {
         try {
-            Log::info('Getting channel ID via Invidious API', ['username' => $username]);
+            Log::info('Getting channel ID via direct scraping', ['username' => $username]);
             
-            // Try multiple Invidious instances
-            $invidiousInstances = [
-                "https://inv.nadeko.net/api/v1/channels/@{$username}",
-                "https://yewtu.be/api/v1/channels/@{$username}",
-                "https://invidious.snopyta.org/api/v1/channels/@{$username}",
-                "https://vid.puffyan.us/api/v1/channels/@{$username}"
-            ];
-            
-            foreach ($invidiousInstances as $invidiousUrl) {
-                $response = Http::timeout(10)->get($invidiousUrl);
-                
-                if ($response->successful()) {
-                    $data = $response->json();
-                    if (isset($data['authorId'])) {
-                        Log::info('Found channel ID via Invidious', ['channelId' => $data['authorId'], 'instance' => $invidiousUrl]);
-                        return $data['authorId'];
-                    }
-                }
-            }
-            
-            Log::warning('Invidious API failed, falling back to direct scraping', ['username' => $username]);
-            
-            // Fallback to direct scraping with better consent bypass
+            // Direct scraping with better consent bypass
             $response = Http::timeout(10)
                 ->withHeaders([
                     'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

@@ -604,13 +604,40 @@ class FeedService
         // Check for media:thumbnail in Atom
         if (isset($entry->children('media', true)->thumbnail)) {
             $thumbnail = $entry->children('media', true)->thumbnail;
-            return (string) ($thumbnail['url'] ?? null);
+            $attributes = $thumbnail->attributes();
+            if (isset($attributes['url'])) {
+                return (string) $attributes['url'];
+            }
+        }
+
+        // Check for media:group -> thumbnail (YouTube uses this)
+        if (isset($entry->children('media', true)->group)) {
+            $group = $entry->children('media', true)->group;
+            if (isset($group->thumbnail)) {
+                $attributes = $group->thumbnail->attributes();
+                if (isset($attributes['url'])) {
+                    return (string) $attributes['url'];
+                }
+            }
         }
 
         // Check for enclosure with image type
         if (isset($entry->enclosure) && 
             str_contains((string) $entry->enclosure['type'], 'image')) {
             return (string) $entry->enclosure['url'];
+        }
+
+        // Extract YouTube video ID from link as fallback
+        $link = $this->getAtomLink($entry);
+        
+        if (preg_match('/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/', $link, $matches)) {
+            $videoId = $matches[1];
+            return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
+        }
+        
+        if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $link, $matches)) {
+            $videoId = $matches[1];
+            return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
         }
 
         return null;

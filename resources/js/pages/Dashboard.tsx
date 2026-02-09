@@ -8,18 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookOpen, Bookmark, Eye, Rss, Plus, Edit, Trash2, RefreshCw, Loader2 } from "lucide-react";
 import { FeedForm } from "@/components/FeedForm";
-import { CategoryForm } from "@/components/CategoryForm";
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-
-interface Category {
-  id: number;
-  name: string;
-  color: string | null;
-  user_feeds_count: number;
-}
 
 interface Entry {
   id: number;
@@ -42,7 +34,6 @@ interface Entry {
 }
 
 interface DashboardProps {
-  categories: Category[];
   stats: {
     totalFeeds: number;
     unreadCount: number;
@@ -62,22 +53,9 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Dashboard({ categories, stats, entries }: DashboardProps) {
+export default function Dashboard({ stats, entries }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("unread");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
-
-  const handleDeleteCategory = (categoryId: number) => {
-    if (confirm('Are you sure you want to delete this category? Feeds will be moved to uncategorized.')) {
-      router.delete(`/categories/${categoryId}`, {
-        onSuccess: () => {
-          router.reload();
-        },
-        onError: (errors) => {
-          console.error('Failed to delete category:', errors);
-        }
-      });
-    }
-  };
 
   const handleRefreshAllFeeds = () => {
     setIsRefreshingAll(true);
@@ -126,7 +104,7 @@ export default function Dashboard({ categories, stats, entries }: DashboardProps
                 </>
               )}
             </Button>
-            <FeedForm categories={categories} />
+            <FeedForm />
           </div>
         </div>
 
@@ -169,46 +147,6 @@ export default function Dashboard({ categories, stats, entries }: DashboardProps
             </CardContent>
           </Card>
         </div>
-
-        {/* Categories */}
-        {categories.length > 0 && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Categories</CardTitle>
-                  <CardDescription>
-                    Your feed categories for easy organization
-                  </CardDescription>
-                </div>
-                <CategoryForm />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <Badge
-                    key={category.id}
-                    variant="secondary"
-                    style={{
-                      backgroundColor: category.color || undefined,
-                    }}
-                    className="cursor-pointer hover:opacity-80 group flex items-center gap-1"
-                  >
-                    {category.name} ({category.user_feeds_count})
-                    <button 
-                      className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
-                      onClick={() => handleDeleteCategory(category.id)}
-                      title="Delete category"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Entries */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">

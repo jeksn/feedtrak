@@ -27,12 +27,6 @@ class DashboardController extends Controller
             \App\Jobs\FetchFeedJob::dispatch($feed->feed_url);
         }
         
-        // Get categories with feed counts
-        $categories = $user->categories()
-            ->withCount('userFeeds')
-            ->orderBy('sort_order')
-            ->get();
-        
         // Get stats
         $totalFeeds = $user->feeds()->count();
         $unreadCount = $user->entryReads()
@@ -94,7 +88,6 @@ class DashboardController extends Controller
         ];
         
         return inertia('Dashboard', [
-            'categories' => $categories,
             'stats' => $stats,
             'entries' => $entries,
         ]);

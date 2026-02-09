@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -130,9 +129,8 @@ export function EntryList({
       {entries.map((entry) => (
         <Card
           key={entry.id}
-          className={`transition-all duration-200 hover:shadow-md ${
-            !entry.is_read ? "border-l-4 border-l-blue-500 bg-blue-50/50 dark:bg-blue-950/20" : "hover:bg-accent/50"
-          }`}
+          className={`transition-all duration-200 hover:shadow-md ${!entry.is_read ? 'border-l-4 border-l-white dark:border-l-foreground' : ''}`}
+          style={!entry.is_read ? { backgroundColor: 'var(--sidebar)' } : {}}
         >
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">
@@ -148,34 +146,15 @@ export function EntryList({
                       }}
                     />
                   </div>
-                ) : (
-                  <Checkbox
-                    checked={entry.is_read}
-                    onCheckedChange={() =>
-                      handleToggleRead(entry.id, entry.is_read, entry.read_id)
-                    }
-                    disabled={isUpdating === entry.id}
-                    className="mt-1 flex-shrink-0"
-                  />
-                )}
+                ) : null}
                 <div className="space-y-1 flex-1 min-w-0">
                   <div className="flex items-start gap-2">
-                    {!entry.thumbnail_url && (
-                      <Checkbox
-                        checked={entry.is_read}
-                        onCheckedChange={() =>
-                          handleToggleRead(entry.id, entry.is_read, entry.read_id)
-                        }
-                        disabled={isUpdating === entry.id}
-                        className="mt-1 flex-shrink-0"
-                      />
-                    )}
                     <CardTitle className="text-lg leading-tight flex-1">
                       <a
                         href={entry.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:text-blue-600 transition-colors duration-200 flex items-start gap-2 group"
+                        className="hover:text-foreground transition-colors duration-200 flex items-start gap-2 group cursor-pointer"
                       >
                         <span className="flex-1">{entry.title}</span>
                         <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0" />
@@ -197,17 +176,17 @@ export function EntryList({
                   size="sm"
                   onClick={() => handleToggleSaved(entry.id, entry.is_saved, entry.saved_id)}
                   disabled={isUpdating === entry.id}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 cursor-pointer"
                 >
                   {entry.is_saved ? (
-                    <BookmarkCheck className="h-4 w-4 text-blue-600" />
+                    <BookmarkCheck className="h-4 w-4" />
                   ) : (
                     <Bookmark className="h-4 w-4" />
                   )}
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0 cursor-pointer">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -217,7 +196,7 @@ export function EntryList({
                         href={entry.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center"
+                        className="flex items-center cursor-pointer"
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />
                         Open in new tab
@@ -226,15 +205,15 @@ export function EntryList({
                     <DropdownMenuItem
                       onClick={() => handleToggleRead(entry.id, entry.is_read, entry.read_id)}
                       disabled={isUpdating === entry.id}
-                    >
+                    	>
                       {entry.is_read ? (
                         <>
-                          <EyeOff className="h-4 w-4 mr-2" />
+                          <EyeOff className="h-4 w-4 mr-2 cursor-pointer" />
                           Mark as unread
                         </>
                       ) : (
                         <>
-                          <Eye className="h-4 w-4 mr-2" />
+                          <Eye className="h-4 w-4 mr-2 cursor-pointer" />
                           Mark as read
                         </>
                       )}
@@ -245,12 +224,12 @@ export function EntryList({
                     >
                       {entry.is_saved ? (
                         <>
-                          <Bookmark className="h-4 w-4 mr-2" />
+                          <Bookmark className="h-4 w-4 mr-2 cursor-pointer" />
                           Remove from saved
                         </>
                       ) : (
                         <>
-                          <BookmarkCheck className="h-4 w-4 mr-2" />
+                          <BookmarkCheck className="h-4 w-4 mr-2 cursor-pointer" />
                           Save for later
                         </>
                       )}

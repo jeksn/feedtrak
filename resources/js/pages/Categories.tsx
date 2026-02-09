@@ -76,13 +76,7 @@ export default function Categories({ categories }: CategoriesProps) {
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: category.color || '#6b7280' }}
-                        />
-                        <CardTitle className="text-lg">{category.name}</CardTitle>
-                      </div>
+                      <CardTitle className="text-lg">{category.name}</CardTitle>
                       <CardDescription className="mt-1">
                         {category.user_feeds_count} feed{category.user_feeds_count !== 1 ? 's' : ''}
                       </CardDescription>
@@ -103,15 +97,8 @@ export default function Categories({ categories }: CategoriesProps) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    <div className="text-sm text-muted-foreground">
-                      Feed count: {category.user_feeds_count}
-                    </div>
-                    {category.color && (
-                      <div className="text-xs text-muted-foreground">
-                        Color: {category.color}
-                      </div>
-                    )}
+                  <div className="text-sm text-muted-foreground">
+                    Feed count: {category.user_feeds_count}
                   </div>
                 </CardContent>
               </Card>

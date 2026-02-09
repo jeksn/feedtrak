@@ -29,7 +29,6 @@ import { router } from "@inertiajs/react";
 
 const formSchema = z.object({
   name: z.string().min(1, "Category name is required").max(50, "Category name must be less than 50 characters"),
-  color: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -53,7 +52,6 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: category?.name || "",
-      color: category?.color || "#3b82f6",
     },
   });
 
@@ -126,22 +124,6 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
                   </FormControl>
                   <FormDescription>
                     Choose a descriptive name for your category
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="color"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Color</FormLabel>
-                  <FormControl>
-                    <Input type="color" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    Choose a color to visually identify this category
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

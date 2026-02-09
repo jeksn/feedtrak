@@ -10,12 +10,12 @@ use SimpleXMLElement;
 
 class FeedService
 {
-    public function discoverFeed(string $url): ?array
+    public function discoverFeed(string $url, ?int $entryLimit = null): ?array
     {
         try {
             // Handle YouTube URLs
             if ($this->isYouTubeUrl($url)) {
-                return $this->handleYouTubeUrl($url);
+                return $this->handleYouTubeUrl($url, $entryLimit);
             }
 
             $response = Http::timeout(10)->get($url);
@@ -28,11 +28,11 @@ class FeedService
             
             // If it's already a feed, parse it directly
             if ($this->isFeedContentType($contentType)) {
-                return $this->parseFeedContent($response->body(), $url);
+                return $this->parseFeedContent($response->body(), $url, $entryLimit);
             }
 
             // Try to find feed links in HTML
-            return $this->findFeedInHtml($response->body(), $url);
+            return $this->findFeedInHtml($response->body(), $url, $entryLimit);
         } catch (\Exception $e) {
             Log::error('Feed discovery failed', ['url' => $url, 'error' => $e->getMessage()]);
             return null;
@@ -44,7 +44,7 @@ class FeedService
         return str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be');
     }
 
-    private function handleYouTubeUrl(string $url): ?array
+    private function handleYouTubeUrl(string $url, ?int $entryLimit = null): ?array
     {
         try {
             Log::info('Processing YouTube URL', ['url' => $url]);
@@ -52,7 +52,7 @@ class FeedService
             // If it's already a YouTube RSS feed URL, parse it directly
             if (str_contains($url, 'feeds/videos.xml')) {
                 Log::info('Direct YouTube RSS feed URL provided', ['url' => $url]);
-                return $this->parseFeed($url);
+                return $this->parseFeed($url, $entryLimit);
             }
             
             // Extract channel ID from YouTube URL
@@ -66,7 +66,7 @@ class FeedService
                     $username = $matches[1];
                     $legacyRssUrl = "https://www.youtube.com/feeds/videos.xml?user={$username}";
                     Log::info('Trying legacy RSS URL', ['url' => $legacyRssUrl]);
-                    $result = $this->parseFeed($legacyRssUrl);
+                    $result = $this->parseFeed($legacyRssUrl, $entryLimit);
                     if ($result) {
                         Log::info('Legacy RSS approach succeeded', ['entryCount' => count($result['entries'] ?? [])]);
                         return $result;
@@ -84,7 +84,7 @@ class FeedService
             Log::info('Fetching YouTube RSS feed', ['rssUrl' => $rssUrl]);
             
             // Parse the RSS feed
-            $result = $this->parseFeed($rssUrl);
+            $result = $this->parseFeed($rssUrl, $entryLimit);
             
             if ($result) {
                 Log::info('Successfully parsed YouTube feed', ['entryCount' => count($result['entries'] ?? [])]);
@@ -302,7 +302,7 @@ class FeedService
         return null;
     }
 
-    public function parseFeed(string $feedUrl): ?array
+    public function parseFeed(string $feedUrl, ?int $entryLimit = null): ?array
     {
         try {
             $response = Http::timeout(10)->get($feedUrl);
@@ -311,7 +311,7 @@ class FeedService
                 return null;
             }
 
-            return $this->parseFeedContent($response->body(), $feedUrl);
+            return $this->parseFeedContent($response->body(), $feedUrl, $entryLimit);
         } catch (\Exception $e) {
             Log::error('Feed parsing failed', ['url' => $feedUrl, 'error' => $e->getMessage()]);
             return null;
@@ -330,7 +330,7 @@ class FeedService
                str_contains($contentType, 'text/xml');
     }
 
-    private function findFeedInHtml(string $html, string $baseUrl): ?array
+    private function findFeedInHtml(string $html, string $baseUrl, ?int $entryLimit = null): ?array
     {
         $dom = new \DOMDocument();
         
@@ -348,7 +348,7 @@ class FeedService
             $href = $links->item(0)->getAttribute('href');
             $feedUrl = $this->resolveUrl($href, $baseUrl);
             
-            return $this->parseFeed($feedUrl);
+            return $this->parseFeed($feedUrl, $entryLimit);
         }
 
         return null;
@@ -371,7 +371,7 @@ class FeedService
         return "{$scheme}://{$host}/" . ltrim($href, '/');
     }
 
-    private function parseFeedContent(string $content, string $url): ?array
+    private function parseFeedContent(string $content, string $url, ?int $entryLimit = null): ?array
     {
         $xml = simplexml_load_string($content, SimpleXMLElement::class, LIBXML_NOCDATA);
         
@@ -390,15 +390,15 @@ class FeedService
 
         // Detect feed type
         if ($xml->getName() === 'rss') {
-            return $this->parseRssFeed($xml, $feed);
+            return $this->parseRssFeed($xml, $feed, $entryLimit);
         } elseif ($xml->getName() === 'feed') {
-            return $this->parseAtomFeed($xml, $feed);
+            return $this->parseAtomFeed($xml, $feed, $entryLimit);
         }
 
         return null;
     }
 
-    private function parseRssFeed(SimpleXMLElement $xml, array $feed): array
+    private function parseRssFeed(SimpleXMLElement $xml, array $feed, ?int $entryLimit = null): array
     {
         $channel = $xml->channel;
         
@@ -406,7 +406,11 @@ class FeedService
         $feed['description'] = (string) ($channel->description ?? '');
         $feed['url'] = (string) ($channel->link ?? $feed['url']);
 
+        $count = 0;
+        $limit = $entryLimit ?? 15;
         foreach ($channel->item as $item) {
+            if ($count >= $limit) break;
+            
             $feed['entries'][] = [
                 'title' => (string) ($item->title ?? ''),
                 'content' => $this->getContent($item),
@@ -417,12 +421,13 @@ class FeedService
                 'published_at' => $this->getPublishedDate($item),
                 'guid' => (string) ($item->guid ?? (string) ($item->link ?? '')),
             ];
+            $count++;
         }
 
         return $feed;
     }
 
-    private function parseAtomFeed(SimpleXMLElement $xml, array $feed): array
+    private function parseAtomFeed(SimpleXMLElement $xml, array $feed, ?int $entryLimit = null): array
     {
         $feed['title'] = (string) ($xml->title ?? '');
         $feed['description'] = (string) ($xml->subtitle ?? '');
@@ -435,7 +440,11 @@ class FeedService
             }
         }
 
+        $count = 0;
+        $limit = $entryLimit ?? 15;
         foreach ($xml->entry as $entry) {
+            if ($count >= $limit) break;
+            
             $feed['entries'][] = [
                 'title' => (string) ($entry->title ?? ''),
                 'content' => $this->getAtomContent($entry),
@@ -446,6 +455,7 @@ class FeedService
                 'published_at' => $this->getAtomPublishedDate($entry),
                 'guid' => (string) ($entry->id ?? (string) $this->getAtomLink($entry)),
             ];
+            $count++;
         }
 
         return $feed;

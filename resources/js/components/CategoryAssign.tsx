@@ -59,13 +59,7 @@ export function CategoryAssign({ feedId, currentCategory, categories }: Category
           <SelectItem value="none">No category</SelectItem>
           {categories.map((category) => (
             <SelectItem key={category.id} value={category.id.toString()}>
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: category.color || '#6b7280' }}
-                />
-                {category.name}
-              </div>
+              {category.name}
             </SelectItem>
           ))}
         </SelectContent>

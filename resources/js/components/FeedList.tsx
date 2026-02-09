@@ -227,12 +227,7 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
                   </div>
                 </div>
                 {feed.category && (
-                  <Badge
-                    variant="secondary"
-                    style={{
-                      backgroundColor: feed.category.color || undefined,
-                    }}
-                  >
+                  <Badge variant="secondary">
                     {feed.category.name}
                   </Badge>
                 )}

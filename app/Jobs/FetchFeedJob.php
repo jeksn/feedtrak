@@ -34,8 +34,15 @@ class FetchFeedJob implements ShouldQueue
                 'category_id' => $this->categoryId
             ]);
             
+            // Check if this is a new feed
+            $existingFeed = \App\Models\Feed::where('feed_url', $this->feedUrl)->first();
+            $isNewFeed = !$existingFeed;
+            
+            // For new feeds, limit to 15 entries. For existing feeds, fetch all.
+            $entryLimit = $isNewFeed ? 15 : null;
+            
             // Discover and parse the feed
-            $feedData = $feedService->discoverFeed($this->feedUrl);
+            $feedData = $feedService->discoverFeed($this->feedUrl, $entryLimit);
             
             if (!$feedData) {
                 Log::warning('Feed discovery failed', ['url' => $this->feedUrl]);
@@ -93,8 +100,8 @@ class FetchFeedJob implements ShouldQueue
 
     private function markEntriesAsUnread(Feed $feed): void
     {
-        // For YouTube feeds, mark more videos as unread initially
-        $limit = str_contains($feed->feed_url, 'youtube.com') ? 15 : null;
+        // Limit all feeds to 15 unread posts initially
+        $limit = 15;
         
         $query = $feed->entries()->latest('published_at');
         

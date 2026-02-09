@@ -13,7 +13,7 @@ import {
 import { dashboard, feeds } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Rss, Tag } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Rss, Tag, Settings } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -31,6 +31,11 @@ const mainNavItems: NavItem[] = [
         title: 'Categories',
         href: '/categories',
         icon: Tag,
+    },
+    {
+        title: 'Settings',
+        href: '/settings/profile',
+        icon: Settings,
     }
 ];
 

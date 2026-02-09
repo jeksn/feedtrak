@@ -24,9 +24,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->withCount('userFeeds')
             ->orderBy('sort_order')
             ->get();
+        
+        // Add uncategorized feeds count
+        $uncategorizedCount = Auth::user()->userFeeds()
+            ->whereNull('category_id')
+            ->count();
+        
+        // Create an uncategorized category object
+        $uncategorizedCategory = (object) [
+            'id' => null,
+            'name' => 'Uncategorized',
+            'color' => null,
+            'user_feeds_count' => $uncategorizedCount,
+        ];
+        
+        // Add uncategorized to the beginning of categories
+        $allCategories = collect([$uncategorizedCategory])->merge($categories);
             
         return Inertia::render('Categories', [
-            'categories' => $categories,
+            'categories' => $allCategories,
         ]);
     })->name('categories');
     
@@ -105,6 +121,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     
                 $feed->category = $userFeed?->category;
                 $feed->unread_count = $unreadCounts->get($feed->id, 0);
+                
+                // Clean feed title and description
+                $feed->title = mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8');
+                $feed->description = mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8');
+                
+                // Clean entries
+                if ($feed->entries) {
+                    $feed->entries = $feed->entries->map(function ($entry) {
+                        $entry->title = mb_convert_encoding($entry->title ?? '', 'UTF-8', 'UTF-8');
+                        $entry->content = mb_convert_encoding($entry->content ?? '', 'UTF-8', 'UTF-8');
+                        $entry->excerpt = mb_convert_encoding($entry->excerpt ?? '', 'UTF-8', 'UTF-8');
+                        $entry->author = mb_convert_encoding($entry->author ?? '', 'UTF-8', 'UTF-8');
+                        return $entry;
+                    });
+                }
                     
                 return $feed;
             });
@@ -112,7 +143,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $categories = Auth::user()->categories()
             ->withCount('userFeeds')
             ->orderBy('sort_order')
-            ->get();
+            ->get()
+            ->map(function ($category) {
+                // Clean category name
+                $category->name = mb_convert_encoding($category->name ?? '', 'UTF-8', 'UTF-8');
+                return $category;
+            });
             
         return Inertia::render('Feeds', [
             'feeds' => $feeds,
@@ -156,19 +192,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 $savedStatus = Auth::user()->savedItems()
                     ->where('entry_id', $entry->id)
                     ->first();
+                
+                // Clean UTF-8 data
+                $title = mb_convert_encoding($entry->title ?? '', 'UTF-8', 'UTF-8');
+                $content = mb_convert_encoding($entry->content ?? '', 'UTF-8', 'UTF-8');
+                $excerpt = mb_convert_encoding($entry->excerpt ?? '', 'UTF-8', 'UTF-8');
+                $author = mb_convert_encoding($entry->author ?? '', 'UTF-8', 'UTF-8');
+                $feedTitle = mb_convert_encoding($entry->feed->title ?? '', 'UTF-8', 'UTF-8');
                     
                 return [
                     'id' => $entry->id,
-                    'title' => $entry->title,
-                    'content' => $entry->content,
-                    'excerpt' => $entry->excerpt,
+                    'title' => $title,
+                    'content' => $content,
+                    'excerpt' => $excerpt,
                     'url' => $entry->url,
                     'thumbnail_url' => $entry->thumbnail_url,
-                    'author' => $entry->author,
+                    'author' => $author,
                     'published_at' => $entry->published_at,
                     'feed' => [
                         'id' => $entry->feed->id,
-                        'title' => $entry->feed->title,
+                        'title' => $feedTitle,
                         'url' => $entry->feed->url,
                     ],
                     'is_read' => $readStatus?->is_read ?? false,
@@ -179,6 +222,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             })
             ->sortByDesc('published_at')
             ->values();
+        
+        // Clean feed data
+        $feed->title = mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8');
+        $feed->description = mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8');
             
         return Inertia::render('FeedDetail', [
             'feed' => $feed,

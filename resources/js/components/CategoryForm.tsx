@@ -34,17 +34,18 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 interface Category {
-  id: number;
+  id: number | null;
   name: string;
   color: string | null;
 }
 
 interface CategoryFormProps {
   category?: Category;
+  trigger?: React.ReactNode;
   onSuccess?: () => void;
 }
 
-export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
+export function CategoryForm({ category, trigger, onSuccess }: CategoryFormProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -58,7 +59,7 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   const onSubmit = (data: FormData) => {
     setIsSubmitting(true);
     
-    if (category) {
+    if (category && category.id) {
       // Update existing category
       router.put(`/categories/${category.id}`, data, {
         onSuccess: () => {
@@ -94,10 +95,12 @@ export function CategoryForm({ category, onSuccess }: CategoryFormProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Plus className="h-4 w-4 mr-2" />
-          {category ? "Edit Category" : "Add Category"}
-        </Button>
+        {trigger || (
+          <Button variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            {category ? "Edit Category" : "Add Category"}
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

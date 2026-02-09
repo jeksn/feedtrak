@@ -94,9 +94,13 @@ class DashboardController extends Controller
             'saved' => $savedEntries,
         ];
         
+        // Get categories for the feed form
+        $categories = $user->categories()->orderBy('sort_order')->get();
+        
         return inertia('Dashboard', [
             'stats' => $stats,
             'entries' => $entries,
+            'categories' => $categories,
         ]);
     }
     

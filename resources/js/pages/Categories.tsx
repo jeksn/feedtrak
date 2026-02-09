@@ -2,15 +2,13 @@
 
 import { CategoryForm } from "@/components/CategoryForm";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Edit, Trash2, Plus } from "lucide-react";
+import { Edit, Trash2, Plus, Tag } from "lucide-react";
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 
 interface Category {
-  id: number;
+  id: number | null;
   name: string;
   color: string | null;
   user_feeds_count: number;
@@ -28,7 +26,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Categories({ categories }: CategoriesProps) {
-  const handleDeleteCategory = (categoryId: number) => {
+  const handleDeleteCategory = (categoryId: number | null) => {
+    if (categoryId === null) {
+      // Cannot delete uncategorized category
+      return;
+    }
+    
     if (confirm('Are you sure you want to delete this category? Feeds will be moved to uncategorized.')) {
       router.delete(`/categories/${categoryId}`, {
         onSuccess: () => {
@@ -44,7 +47,7 @@ export default function Categories({ categories }: CategoriesProps) {
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
       <Head title="Categories" />
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="container mx-auto px-6 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -58,51 +61,62 @@ export default function Categories({ categories }: CategoriesProps) {
 
         {/* Categories */}
         {categories.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="text-center space-y-2">
-                <h3 className="text-lg font-semibold">No categories yet</h3>
-                <p className="text-muted-foreground">
-                  Create your first category to organize your feeds
-                </p>
-                <CategoryForm />
-              </div>
-            </CardContent>
-          </Card>
+          <div className="text-center py-12 border rounded-lg">
+            <Tag className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No categories yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Create your first category to organize your feeds
+            </p>
+            <CategoryForm />
+          </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {categories.map((category) => (
-              <Card key={category.id} className="relative">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">{category.name}</CardTitle>
-                      <CardDescription className="mt-1">
-                        {category.user_feeds_count} feed{category.user_feeds_count !== 1 ? 's' : ''}
-                      </CardDescription>
-                    </div>
+          <div className="border rounded-lg overflow-hidden">
+            {/* Table Header */}
+            <div className="grid grid-cols-[1fr_120px_120px] gap-4 px-6 py-3 bg-muted/50 font-medium text-sm text-muted-foreground">
+              <div>Category</div>
+              <div>Feeds</div>
+              <div>Actions</div>
+            </div>
+            
+            {/* Table Body */}
+            <div className="divide-y">
+              {categories.map((category) => (
+                <div key={category.id || 'uncategorized'} className="grid grid-cols-[1fr_120px_120px] gap-4 px-6 py-4 hover:bg-muted/50 transition-colors items-center">
+                  <div>
+                    <div className="font-medium">{category.name}</div>
+                  </div>
+                  <div>
+                    <span className="text-sm">
+                      {category.user_feeds_count} feed{category.user_feeds_count !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div>
                     <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeleteCategory(category.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {category.id !== null && (
+                        <>
+                          <CategoryForm 
+                            category={category}
+                            trigger={
+                              <Button variant="ghost" size="sm">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            }
+                          />
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDeleteCategory(category.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-muted-foreground">
-                    Feed count: {category.user_feeds_count}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

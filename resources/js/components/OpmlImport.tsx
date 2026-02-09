@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Upload, Loader2, FileText, Download } from "lucide-react";
 
 interface OpmlImportProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function OpmlImport({ children }: OpmlImportProps) {
@@ -170,7 +170,12 @@ export function OpmlImport({ children }: OpmlImportProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        {children}
+        {children || (
+          <Button>
+            <Upload className="h-4 w-4 mr-2" />
+            Import Feeds
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

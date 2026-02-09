@@ -2,17 +2,18 @@
 
 import { useState } from "react";
 import { EntryList } from "@/components/EntryList";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Bookmark, Eye, Rss, Plus, Edit, Trash2, RefreshCw, Loader2, Upload } from "lucide-react";
 import { FeedForm } from "@/components/FeedForm";
-import { OpmlImport } from "@/components/OpmlImport";
-import AppLayout from '@/layouts/app-layout';
+import { type BreadcrumbItem, type SharedData } from "@/types";
+import { Head, usePage } from "@inertiajs/react";
+import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen } from "lucide-react";
+import AppLayout from "@/layouts/app-layout";
+import { router } from "@inertiajs/react";
 import { dashboard } from '@/routes';
-import { type BreadcrumbItem } from '@/types';
-import { Head, router } from '@inertiajs/react';
 
 interface Entry {
   id: number;
@@ -45,6 +46,11 @@ interface DashboardProps {
     unread: Entry[];
     saved: Entry[];
   };
+  categories: Array<{
+    id: number;
+    name: string;
+    color: string | null;
+  }>;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -54,7 +60,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Dashboard({ stats, entries }: DashboardProps) {
+export default function Dashboard({ stats, entries, categories }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("unread");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
 
@@ -105,13 +111,7 @@ export default function Dashboard({ stats, entries }: DashboardProps) {
                 </>
               )}
             </Button>
-            <OpmlImport>
-              <Button variant="outline" size="sm" className="gap-2">
-                <Upload className="h-4 w-4" />
-                Import OPML
-              </Button>
-            </OpmlImport>
-            <FeedForm />
+            <FeedForm categories={categories} />
           </div>
         </div>
 

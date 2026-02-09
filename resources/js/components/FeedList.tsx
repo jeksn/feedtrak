@@ -2,13 +2,6 @@
 
 import { useState } from "react";
 import { router } from "@inertiajs/react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,10 +23,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-import { MoreHorizontal, RefreshCw, Trash2, Loader2, CheckCheck, ExternalLink, Rss, Upload } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash2, Loader2, CheckCheck, ExternalLink, Rss } from "lucide-react";
 import { FeedForm } from "./FeedForm";
-import { OpmlImport } from "./OpmlImport";
-import { CategoryAssign } from "./CategoryAssign";
 import { FeedCardSkeleton } from "./loading-skeletons";
 import { formatDistanceToNow } from "date-fns";
 
@@ -145,66 +136,78 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
             <CheckCheck className="h-4 w-4 mr-2" />
             Mark All as Read
           </Button>
-          <OpmlImport>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Upload className="h-4 w-4" />
-              Import OPML
-            </Button>
-          </OpmlImport>
           <FeedForm categories={categories} />
         </div>
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <FeedCardSkeleton key={i} />
+            <div key={i} className="h-16 bg-muted animate-pulse rounded" />
           ))}
         </div>
       ) : feeds.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-center space-y-4">
-              <h3 className="text-lg font-semibold">No feeds yet</h3>
-              <p className="text-muted-foreground">
-                Get started by adding your first RSS feed or import from an OPML file
-              </p>
-              <div className="flex items-center gap-2 justify-center">
-                <OpmlImport>
-                  <Button variant="outline" className="gap-2">
-                    <Upload className="h-4 w-4" />
-                    Import OPML
-                  </Button>
-                </OpmlImport>
-                <FeedForm categories={categories} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="text-center py-12">
+          <h3 className="text-lg font-semibold mb-2">No feeds yet</h3>
+          <p className="text-muted-foreground mb-4">
+            Get started by adding your first RSS feed
+          </p>
+          <FeedForm categories={categories} />
+        </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {feeds.map((feed) => (
-            <Card key={feed.id} className="relative transition-all duration-200 hover:shadow-md hover:-translate-y-1">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg hover:text-blue-600 cursor-pointer transition-colors duration-200 flex items-center gap-2 group"
-                              onClick={() => router.visit(`/feeds/${feed.id}`)}>
-                      <span className="flex-1">{feed.title}</span>
-                      <ExternalLink className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0" />
-                    </CardTitle>
-                    <CardDescription className="mt-1 line-clamp-2">
-                      {feed.description || <em className="opacity-70">No description available</em>}
-                    </CardDescription>
+        <div className="border rounded-lg overflow-hidden">
+          {/* Table Header */}
+          <div className="grid grid-cols-[1fr_120px_80px_150px_70px] gap-4 px-6 py-3 bg-muted/50 font-medium text-sm text-muted-foreground">
+            <div>Feed</div>
+            <div>Category</div>
+            <div>Unread</div>
+            <div>Last Updated</div>
+            <div></div>
+          </div>
+          
+          {/* Table Body */}
+          <div className="divide-y">
+            {feeds.map((feed) => (
+              <div key={feed.id} className="grid grid-cols-[1fr_120px_80px_150px_70px] gap-4 px-6 py-4 hover:bg-muted/50 transition-colors items-center">
+                <div className="min-w-0">
+                  <div 
+                    className="font-medium hover:text-blue-600 cursor-pointer transition-colors duration-200 inline-flex items-center gap-2 group"
+                    onClick={() => router.visit(`/feeds/${feed.id}`)}
+                  >
+                    <span className="truncate">{feed.title}</span>
+                    <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    {feed.unread_count > 0 && (
-                      <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white">
-                        {feed.unread_count} new
-                      </Badge>
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {feed.description || <em className="opacity-70">No description</em>}
+                  </p>
+                </div>
+                <div>
+                  {feed.category && (
+                    <span className="text-sm text-muted-foreground">
+                      {feed.category.name}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  {feed.unread_count > 0 ? (
+                    <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white">
+                      {feed.unread_count}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">0</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-sm text-muted-foreground">
+                    {feed.last_fetched_at 
+                      ? formatDistanceToNow(new Date(feed.last_fetched_at), { addSuffix: true })
+                      : 'Never'
+                    }
+                  </span>
+                </div>
+                <div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="h-8 w-8 p-0">
                         <span className="sr-only">Open menu</span>
                         <MoreHorizontal className="h-4 w-4" />
@@ -212,12 +215,24 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        onClick={() => handleMarkAllAsRead(feed.id)}
-                        disabled={feed.unread_count === 0}
+                        onClick={() => router.visit(`/feeds/${feed.id}`)}
                       >
-                        <CheckCheck className="mr-2 h-4 w-4" />
-                        Mark All as Read
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        View Feed
                       </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = feed.url;
+                          link.target = '_blank';
+                          link.rel = 'noopener noreferrer';
+                          link.click();
+                        }}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Visit Website
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => handleRefreshFeed(feed.id)}
                         disabled={isRefreshing === feed.id}
@@ -227,60 +242,28 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
                         ) : (
                           <RefreshCw className="mr-2 h-4 w-4" />
                         )}
-                        Refresh
+                        Refresh Feed
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleMarkAllAsRead(feed.id)}
+                      >
+                        <CheckCheck className="mr-2 h-4 w-4" />
+                        Mark All as Read
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteDialogOpen(feed.id)}
-                        className="text-destructive"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
+                        Delete Feed
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  </div>
                 </div>
-                {feed.category && (
-                  <Badge variant="secondary">
-                    {feed.category.name}
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Rss className="h-3 w-3" />
-                      {feed.entries.length} recent items
-                    </span>
-                    {feed.unread_count > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        {feed.unread_count} unread
-                      </Badge>
-                    )}
-                  </div>
-                  {feed.last_fetched_at && (
-                    <div className="text-xs text-muted-foreground flex items-center gap-1">
-                      <RefreshCw className="h-3 w-3" />
-                      Last updated: {" "}
-                      {formatDistanceToNow(new Date(feed.last_fetched_at), { addSuffix: true })}
-                    </div>
-                  )}
-                  <div className="text-xs text-muted-foreground truncate font-mono bg-muted/50 px-2 py-1 rounded">
-                    {feed.url}
-                  </div>
-                  <div className="pt-2">
-                    <CategoryAssign
-                      feedId={feed.id}
-                      currentCategory={feed.category}
-                      categories={categories}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
       

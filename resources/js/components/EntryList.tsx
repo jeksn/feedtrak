@@ -69,6 +69,15 @@ export function EntryList({
 }: EntryListProps) {
   const [isUpdating, setIsUpdating] = useState<number | null>(null);
 
+  const handleTitleClick = (entry: Entry) => {
+    // Mark as read if unread
+    if (!entry.is_read) {
+      handleToggleRead(entry.id, false, entry.read_id);
+    }
+    // Open the link
+    window.open(entry.url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleToggleRead = (entryId: number, isRead: boolean, readId?: number) => {
     setIsUpdating(entryId);
     
@@ -151,9 +160,8 @@ export function EntryList({
                   <div className="flex items-start gap-2">
                     <CardTitle className="text-lg leading-tight flex-1">
                       <a
-                        href={entry.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href="#"
+                        onClick={() => handleTitleClick(entry)}
                         className="hover:text-foreground transition-colors duration-200 flex items-start gap-2 group cursor-pointer"
                       >
                         <span className="flex-1">{entry.title}</span>

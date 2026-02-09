@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid } from "lucide-react";
+import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid, ChevronDown } from "lucide-react";
 import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
 import { dashboard } from '@/routes';
@@ -48,6 +48,13 @@ interface DashboardProps {
     unread: Entry[];
     saved: Entry[];
   };
+  pagination?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+  };
   categories: Array<{
     id: number;
     name: string;
@@ -58,15 +65,18 @@ interface DashboardProps {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Home',
         href: dashboard().url,
     },
 ];
 
-export default function Dashboard({ stats, entries, categories, entryViewMode }: DashboardProps) {
+export default function Home({ stats, entries, categories, entryViewMode, pagination }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("unread");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [viewMode, setViewMode] = useState(entryViewMode);
+  const [currentPage, setCurrentPage] = useState(pagination?.current_page || 1);
+  const [allEntries, setAllEntries] = useState<Entry[]>(entries.all || []);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [entryStates, setEntryStates] = useState<Record<string, { is_read?: boolean; is_saved?: boolean }>>({});
 
   const handleRefreshAllFeeds = () => {
@@ -112,14 +122,35 @@ export default function Dashboard({ stats, entries, categories, entryViewMode }:
     ...entryStates[entry.id]
   });
 
+  const loadMoreEntries = () => {
+    if (!pagination?.has_more || isLoadingMore || activeTab !== 'all') return;
+    
+    setIsLoadingMore(true);
+    const nextPage = currentPage + 1;
+    
+    router.get('/', { page: nextPage }, {
+      preserveState: true,
+      preserveScroll: true,
+      onSuccess: (page) => {
+        const newEntries = page.props.entries.all as Entry[];
+        setAllEntries(prev => [...prev, ...newEntries]);
+        setCurrentPage(nextPage);
+        setIsLoadingMore(false);
+      },
+      onError: () => {
+        setIsLoadingMore(false);
+      }
+    });
+  };
+
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
-      <Head title="Dashboard" />
+      <Head title="Home" />
       <div className="container mx-auto px-6 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Home</h1>
             <p className="text-muted-foreground">
               Welcome back! Here's what's new in your feeds.
             </p>
@@ -241,17 +272,63 @@ export default function Dashboard({ stats, entries, categories, entryViewMode }:
 
           <TabsContent value="all">
             {viewMode === 'list' ? (
-              <EntryList entries={entries.all} />
+              <div className="space-y-4">
+                <EntryList entries={allEntries} />
+                {pagination?.has_more && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreEntries}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {entries.all.map((entry) => (
-                  <EntryCard
-                    key={entry.id}
-                    entry={getEntryWithState(entry)}
-                    onReadToggle={handleReadToggle}
-                    onSaveToggle={handleSaveToggle}
-                  />
-                ))}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {allEntries.map((entry) => (
+                    <EntryCard
+                      key={entry.id}
+                      entry={getEntryWithState(entry)}
+                      onReadToggle={handleReadToggle}
+                      onSaveToggle={handleSaveToggle}
+                    />
+                  ))}
+                </div>
+                {pagination?.has_more && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreEntries}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>

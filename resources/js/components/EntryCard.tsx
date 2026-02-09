@@ -47,6 +47,15 @@ const formatRelativeTime = (dateString: string) => {
 };
 
 export function EntryCard({ entry, onReadToggle, onSaveToggle }: EntryCardProps) {
+  const handleTitleClick = (e: React.MouseEvent) => {
+    // Mark as read first
+    if (!entry.is_read) {
+      handleMarkAsRead();
+    }
+    // Then open the link in a new tab
+    window.open(entry.url, '_blank', 'noopener,noreferrer');
+  };
+
   const handleMarkAsRead = () => {
     router.post(`/entries/${entry.id}/read`, {}, {
       onSuccess: () => {
@@ -103,15 +112,9 @@ export function EntryCard({ entry, onReadToggle, onSaveToggle }: EntryCardProps)
           <div className="flex-1 min-w-0">
             <h3 className="text-base font-semibold line-clamp-2 mb-2">
               <a
-                href={entry.url}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#"
+                onClick={handleTitleClick}
                 className="hover:text-blue-600 transition-colors cursor-pointer"
-                onClick={(e) => {
-                  if (!entry.is_read) {
-                    handleMarkAsRead();
-                  }
-                }}
               >
                 {entry.title}
               </a>

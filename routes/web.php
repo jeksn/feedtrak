@@ -10,13 +10,15 @@ use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 
 Route::get('/', function () {
-    return Inertia::render('welcome', [
-        'canRegister' => Features::enabled(Features::registration()),
-    ]);
+    if (Auth::check()) {
+        return redirect()->route('dashboard');
+    }
+    
+    return redirect()->route('login');
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('dashboard', \App\Http\Controllers\DashboardController::class)->name('dashboard');
+    Route::get('app', \App\Http\Controllers\DashboardController::class)->name('dashboard');
     
     // Categories management route
     Route::get('/categories', function () {
@@ -467,7 +469,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'read_at' => now(),
         ]);
 
-        return back();
+        return response()->json(['success' => true]);
     });
     
     Route::delete('/entries/{entry}/read', function (\App\Models\Entry $entry) {
@@ -483,7 +485,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ]);
         }
 
-        return back();
+        return response()->json(['success' => true]);
     });
     
     Route::post('/entries/{entry}/save', function (\App\Models\Entry $entry) {

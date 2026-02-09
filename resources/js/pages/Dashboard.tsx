@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Bookmark, Eye, Rss, Plus, Edit, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { BookOpen, Bookmark, Eye, Rss, Plus, Edit, Trash2, RefreshCw, Loader2, Upload } from "lucide-react";
 import { FeedForm } from "@/components/FeedForm";
+import { OpmlImport } from "@/components/OpmlImport";
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
@@ -104,6 +105,12 @@ export default function Dashboard({ stats, entries }: DashboardProps) {
                 </>
               )}
             </Button>
+            <OpmlImport>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Upload className="h-4 w-4" />
+                Import OPML
+              </Button>
+            </OpmlImport>
             <FeedForm />
           </div>
         </div>

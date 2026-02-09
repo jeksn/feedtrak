@@ -24,7 +24,7 @@ class DashboardController extends Controller
             ->get();
             
         foreach ($staleFeeds as $feed) {
-            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url);
+            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
         }
         
         // Get stats
@@ -54,19 +54,26 @@ class DashboardController extends Controller
                 $savedStatus = $user->savedItems()
                     ->where('entry_id', $entry->id)
                     ->first();
+                
+                // Clean up any malformed UTF-8
+                $title = $this->cleanUtf8($entry->title);
+                $content = $this->cleanUtf8($entry->content);
+                $excerpt = $this->cleanUtf8($entry->excerpt);
+                $author = $this->cleanUtf8($entry->author);
+                $feedTitle = $this->cleanUtf8($entry->feed->title);
                     
                 return [
                     'id' => $entry->id,
-                    'title' => $entry->title,
-                    'content' => $entry->content,
-                    'excerpt' => $entry->excerpt,
+                    'title' => $title,
+                    'content' => $content,
+                    'excerpt' => $excerpt,
                     'url' => $entry->url,
                     'thumbnail_url' => $entry->thumbnail_url,
-                    'author' => $entry->author,
+                    'author' => $author,
                     'published_at' => $entry->published_at,
                     'feed' => [
                         'id' => $entry->feed->id,
-                        'title' => $entry->feed->title,
+                        'title' => $feedTitle,
                         'url' => $entry->feed->url,
                     ],
                     'is_read' => $readStatus?->is_read ?? false,
@@ -91,5 +98,20 @@ class DashboardController extends Controller
             'stats' => $stats,
             'entries' => $entries,
         ]);
+    }
+    
+    private function cleanUtf8($string)
+    {
+        if (is_null($string)) {
+            return null;
+        }
+        
+        // Remove invalid UTF-8 sequences
+        $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+        
+        // Remove any remaining non-UTF-8 characters
+        $string = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
+        
+        return $string;
     }
 }

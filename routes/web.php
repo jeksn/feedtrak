@@ -312,6 +312,60 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return back()->with('success', 'All feeds queued for refresh.');
     });
     
+    // OPML import route
+    Route::post('/feeds/import-opml', function (Request $request) {
+        $validated = $request->validate([
+            'opml_file' => 'required|file|mimes:xml,opml|max:10240', // Max 10MB
+        ]);
+
+        try {
+            // Ensure we're working with a proper file
+            $file = $validated['opml_file'];
+            if (!$file->isValid()) {
+                throw new \Exception('File upload failed: ' . $file->getErrorMessage());
+            }
+            
+            $opmlContent = file_get_contents($file->getPathname());
+            
+            if ($opmlContent === false) {
+                throw new \Exception('Failed to read uploaded file');
+            }
+            
+            // Check if content is empty
+            if (empty(trim($opmlContent))) {
+                throw new \Exception('The uploaded file is empty');
+            }
+            
+            $opmlService = app(\App\Services\OpmlService::class);
+            $result = $opmlService->importOpml($opmlContent, Auth::id());
+            
+            $message = "Import completed: {$result['feeds_imported']} feeds imported, ";
+            $message .= "{$result['categories_created']} categories created";
+            
+            if ($result['feeds_skipped'] > 0) {
+                $message .= ", {$result['feeds_skipped']} feeds skipped (already subscribed)";
+            }
+            
+            if (!empty($result['errors'])) {
+                $message .= ". Some errors occurred: " . implode('; ', array_slice($result['errors'], 0, 3));
+                if (count($result['errors']) > 3) {
+                    $message .= " and " . (count($result['errors']) - 3) . " more errors";
+                }
+            }
+            
+            return redirect()->back()->with('success', $message);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('OPML import failed', [
+                'user_id' => Auth::id(),
+                'error' => $e->getMessage(),
+            ]);
+            
+            return redirect()->back()->withErrors(['opml' => $e->getMessage()]);
+        }
+    })->name('feeds.import-opml');
+    
     // Entry routes
     Route::post('/entries/{entry}/read', function (\App\Models\Entry $entry) {
         // Verify user has access to this entry

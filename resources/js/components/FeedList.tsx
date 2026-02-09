@@ -30,8 +30,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-import { MoreHorizontal, RefreshCw, Trash2, Loader2, CheckCheck, ExternalLink, Rss } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash2, Loader2, CheckCheck, ExternalLink, Rss, Upload } from "lucide-react";
 import { FeedForm } from "./FeedForm";
+import { OpmlImport } from "./OpmlImport";
 import { CategoryAssign } from "./CategoryAssign";
 import { FeedCardSkeleton } from "./loading-skeletons";
 import { formatDistanceToNow } from "date-fns";
@@ -144,6 +145,12 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
             <CheckCheck className="h-4 w-4 mr-2" />
             Mark All as Read
           </Button>
+          <OpmlImport>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Upload className="h-4 w-4" />
+              Import OPML
+            </Button>
+          </OpmlImport>
           <FeedForm categories={categories} />
         </div>
       </div>
@@ -157,12 +164,20 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
       ) : feeds.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-4">
               <h3 className="text-lg font-semibold">No feeds yet</h3>
               <p className="text-muted-foreground">
-                Get started by adding your first RSS feed
+                Get started by adding your first RSS feed or import from an OPML file
               </p>
-              <FeedForm categories={categories} />
+              <div className="flex items-center gap-2 justify-center">
+                <OpmlImport>
+                  <Button variant="outline" className="gap-2">
+                    <Upload className="h-4 w-4" />
+                    Import OPML
+                  </Button>
+                </OpmlImport>
+                <FeedForm categories={categories} />
+              </div>
             </div>
           </CardContent>
         </Card>

@@ -80,7 +80,7 @@ class FetchFeedJob implements ShouldQueue
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            throw $e;
+            // Don't re-throw exceptions in queued jobs to avoid breaking the queue
         }
     }
 

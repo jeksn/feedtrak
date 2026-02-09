@@ -402,8 +402,8 @@ class FeedService
     {
         $channel = $xml->channel;
         
-        $feed['title'] = (string) ($channel->title ?? '');
-        $feed['description'] = (string) ($channel->description ?? '');
+        $feed['title'] = $this->cleanUtf8((string) ($channel->title ?? ''));
+        $feed['description'] = $this->cleanUtf8((string) ($channel->description ?? ''));
         $feed['url'] = (string) ($channel->link ?? $feed['url']);
 
         $count = 0;
@@ -412,12 +412,12 @@ class FeedService
             if ($count >= $limit) break;
             
             $feed['entries'][] = [
-                'title' => (string) ($item->title ?? ''),
-                'content' => $this->getContent($item),
-                'excerpt' => $this->getExcerpt($item),
+                'title' => $this->cleanUtf8((string) ($item->title ?? '')),
+                'content' => $this->cleanUtf8($this->getContent($item)),
+                'excerpt' => $this->cleanUtf8($this->getExcerpt($item)),
                 'url' => (string) ($item->link ?? ''),
                 'thumbnail_url' => $this->getThumbnail($item),
-                'author' => $this->getAuthor($item),
+                'author' => $this->cleanUtf8($this->getAuthor($item)),
                 'published_at' => $this->getPublishedDate($item),
                 'guid' => (string) ($item->guid ?? (string) ($item->link ?? '')),
             ];
@@ -429,8 +429,8 @@ class FeedService
 
     private function parseAtomFeed(SimpleXMLElement $xml, array $feed, ?int $entryLimit = null): array
     {
-        $feed['title'] = (string) ($xml->title ?? '');
-        $feed['description'] = (string) ($xml->subtitle ?? '');
+        $feed['title'] = $this->cleanUtf8((string) ($xml->title ?? ''));
+        $feed['description'] = $this->cleanUtf8((string) ($xml->subtitle ?? ''));
         
         // Find the main link
         foreach ($xml->link as $link) {
@@ -445,20 +445,26 @@ class FeedService
         foreach ($xml->entry as $entry) {
             if ($count >= $limit) break;
             
-            $feed['entries'][] = [
-                'title' => (string) ($entry->title ?? ''),
-                'content' => $this->getAtomContent($entry),
-                'excerpt' => $this->getAtomExcerpt($entry),
-                'url' => $this->getAtomLink($entry),
-                'thumbnail_url' => $this->getAtomThumbnail($entry),
-                'author' => $this->getAtomAuthor($entry),
-                'published_at' => $this->getAtomPublishedDate($entry),
-                'guid' => (string) ($entry->id ?? (string) $this->getAtomLink($entry)),
-            ];
+            $feed['entries'][] = $this->parseAtomEntry($entry);
             $count++;
         }
 
         return $feed;
+    }
+    
+    private function parseAtomEntry(SimpleXMLElement $entry): array
+    {
+        $content = $this->getAtomContent($entry);
+        
+        return [
+            'title' => $this->cleanUtf8((string) ($entry->title ?? 'Untitled')),
+            'url' => $this->getAtomLink($entry),
+            'content' => $this->cleanUtf8($content),
+            'excerpt' => $this->cleanUtf8($this->generateExcerpt($content)),
+            'author' => $this->cleanUtf8($this->getAtomAuthor($entry)),
+            'published_at' => $this->getAtomPublishedDate($entry),
+            'thumbnail_url' => $this->getAtomThumbnail($entry),
+        ];
     }
 
     private function getContent(SimpleXMLElement $item): string
@@ -529,12 +535,16 @@ class FeedService
 
     public function createOrUpdateFeed(array $feedData): Feed
     {
+        // Clean up any malformed UTF-8
+        $title = $this->cleanUtf8($feedData['title'] ?? 'Untitled Feed');
+        $description = $this->cleanUtf8($feedData['description'] ?? '');
+        
         $feed = Feed::firstOrCreate(
             ['feed_url' => $feedData['feed_url']],
             [
                 'url' => $feedData['url'],
-                'title' => $feedData['title'],
-                'description' => $feedData['description'],
+                'title' => $title,
+                'description' => $description,
                 'type' => $feedData['type'],
                 'last_fetched_at' => now(),
             ]
@@ -550,19 +560,42 @@ class FeedService
     public function createEntries(Feed $feed, array $entries): void
     {
         foreach ($entries as $entryData) {
-            $entry = Entry::firstOrCreate(
-                ['feed_id' => $feed->id, 'guid' => $entryData['guid']],
+            // Clean up any malformed UTF-8
+            $title = $this->cleanUtf8($entryData['title'] ?? 'Untitled');
+            $content = $this->cleanUtf8($entryData['content'] ?? '');
+            $excerpt = $this->cleanUtf8($entryData['excerpt'] ?? $this->generateExcerpt($content));
+            $author = $this->cleanUtf8($entryData['author'] ?? null);
+            
+            Entry::updateOrCreate(
                 [
-                    'title' => $entryData['title'],
-                    'content' => $entryData['content'],
-                    'excerpt' => $entryData['excerpt'],
+                    'feed_id' => $feed->id,
                     'url' => $entryData['url'],
+                ],
+                [
+                    'title' => $title,
+                    'content' => $content,
+                    'excerpt' => $excerpt,
+                    'author' => $author,
+                    'published_at' => $entryData['published_at'] ?? now(),
                     'thumbnail_url' => $entryData['thumbnail_url'] ?? null,
-                    'author' => $entryData['author'],
-                    'published_at' => $entryData['published_at'],
                 ]
             );
         }
+    }
+    
+    private function cleanUtf8($string)
+    {
+        if (is_null($string)) {
+            return null;
+        }
+        
+        // Remove invalid UTF-8 sequences
+        $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+        
+        // Remove any remaining non-UTF-8 characters
+        $string = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
+        
+        return $string;
     }
 
     private function getThumbnail(SimpleXMLElement $item): ?string

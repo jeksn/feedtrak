@@ -9,6 +9,8 @@ use App\Services\FeedService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 
 class FetchFeedJob implements ShouldQueue
 {
@@ -17,6 +19,13 @@ class FetchFeedJob implements ShouldQueue
     public string $feedUrl;
     public ?int $userId;
     public ?int $categoryId;
+    
+    // Timeout after 30 seconds
+    public int $timeout = 30;
+    
+    // Retry up to 3 times with exponential backoff
+    public int $tries = 3;
+    public array|int $backoff = [10, 30, 60];
 
     public function __construct(string $feedUrl, ?int $userId = null, ?int $categoryId = null)
     {
@@ -31,7 +40,8 @@ class FetchFeedJob implements ShouldQueue
             Log::info('FetchFeedJob started', [
                 'feed_url' => $this->feedUrl,
                 'user_id' => $this->userId,
-                'category_id' => $this->categoryId
+                'category_id' => $this->categoryId,
+                'attempt' => $this->attempts()
             ]);
             
             // Check if this is a new feed
@@ -57,9 +67,10 @@ class FetchFeedJob implements ShouldQueue
             // Create or update the feed
             $feed = $feedService->createOrUpdateFeed($feedData);
 
-            // Create entries
+            // Create entries (limit to last 100 for performance)
             if (!empty($feedData['entries'])) {
-                $feedService->createEntries($feed, $feedData['entries']);
+                $entries = array_slice($feedData['entries'], 0, 100);
+                $feedService->createEntries($feed, $entries);
             }
 
             // If this is for a specific user, create the subscription
@@ -73,15 +84,54 @@ class FetchFeedJob implements ShouldQueue
             
             Log::info('FetchFeedJob completed successfully', ['feed_id' => $feed->id]);
 
+        } catch (ConnectionException $e) {
+            Log::warning('Feed connection failed', [
+                'feed_url' => $this->feedUrl,
+                'error' => $e->getMessage(),
+                'attempt' => $this->attempts()
+            ]);
+            
+            // Don't retry connection errors
+            $this->fail($e);
+            
+        } catch (RequestException $e) {
+            Log::warning('Feed request failed', [
+                'feed_url' => $this->feedUrl,
+                'status' => $e->response?->status(),
+                'error' => $e->getMessage(),
+                'attempt' => $this->attempts()
+            ]);
+            
+            // Don't retry 4xx errors
+            if ($e->response && $e->response->status() >= 400 && $e->response->status() < 500) {
+                $this->fail($e);
+            }
+            throw $e;
+            
         } catch (\Exception $e) {
             Log::error('FetchFeedJob failed', [
                 'feed_url' => $this->feedUrl,
                 'user_id' => $this->userId,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'attempt' => $this->attempts()
             ]);
-            // Don't re-throw exceptions in queued jobs to avoid breaking the queue
+            
+            // Re-throw for retry logic
+            throw $e;
         }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('FetchFeedJob failed permanently', [
+            'feed_url' => $this->feedUrl,
+            'error' => $exception->getMessage(),
+            'attempts' => $this->attempts()
+        ]);
     }
 
     private function createUserSubscription(Feed $feed): void

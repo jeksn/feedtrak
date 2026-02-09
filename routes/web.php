@@ -123,16 +123,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 $feed->unread_count = $unreadCounts->get($feed->id, 0);
                 
                 // Clean feed title and description
-                $feed->title = mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8');
-                $feed->description = mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8');
+                $feed->title = html_entity_decode(mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $feed->description = html_entity_decode(mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
                 
                 // Clean entries
                 if ($feed->entries) {
                     $feed->entries = $feed->entries->map(function ($entry) {
-                        $entry->title = mb_convert_encoding($entry->title ?? '', 'UTF-8', 'UTF-8');
-                        $entry->content = mb_convert_encoding($entry->content ?? '', 'UTF-8', 'UTF-8');
-                        $entry->excerpt = mb_convert_encoding($entry->excerpt ?? '', 'UTF-8', 'UTF-8');
-                        $entry->author = mb_convert_encoding($entry->author ?? '', 'UTF-8', 'UTF-8');
+                        $entry->title = html_entity_decode(mb_convert_encoding($entry->title ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        $entry->content = html_entity_decode(mb_convert_encoding($entry->content ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        $entry->excerpt = html_entity_decode(mb_convert_encoding($entry->excerpt ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        $entry->author = html_entity_decode(mb_convert_encoding($entry->author ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
                         return $entry;
                     });
                 }
@@ -194,11 +194,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
                     ->first();
                 
                 // Clean UTF-8 data
-                $title = mb_convert_encoding($entry->title ?? '', 'UTF-8', 'UTF-8');
-                $content = mb_convert_encoding($entry->content ?? '', 'UTF-8', 'UTF-8');
-                $excerpt = mb_convert_encoding($entry->excerpt ?? '', 'UTF-8', 'UTF-8');
-                $author = mb_convert_encoding($entry->author ?? '', 'UTF-8', 'UTF-8');
-                $feedTitle = mb_convert_encoding($entry->feed->title ?? '', 'UTF-8', 'UTF-8');
+                $title = html_entity_decode(mb_convert_encoding($entry->title ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $content = html_entity_decode(mb_convert_encoding($entry->content ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $excerpt = html_entity_decode(mb_convert_encoding($entry->excerpt ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $author = html_entity_decode(mb_convert_encoding($entry->author ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $feedTitle = html_entity_decode(mb_convert_encoding($entry->feed->title ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
                     
                 return [
                     'id' => $entry->id,
@@ -224,8 +224,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->values();
         
         // Clean feed data
-        $feed->title = mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8');
-        $feed->description = mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8');
+        $feed->title = html_entity_decode(mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $feed->description = html_entity_decode(mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
             
         return Inertia::render('FeedDetail', [
             'feed' => $feed,
@@ -351,12 +351,46 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
     
     Route::post('/entries/refresh-all', function () {
-        // Refresh all user's feeds
-        Auth::user()->feeds()->get()->each(function ($feed) {
-            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url);
+        // Get all user's feeds with their last fetch time
+        $feeds = Auth::user()->feeds()->get();
+        
+        // Only refresh feeds that haven't been updated in the last 5 minutes
+        $feedsToRefresh = $feeds->filter(function ($feed) {
+            return !$feed->last_fetched_at || 
+                   $feed->last_fetched_at->lt(now()->subMinutes(5));
         });
-
-        return back()->with('success', 'All feeds queued for refresh.');
+        
+        // Dispatch jobs with a specific queue for better performance
+        foreach ($feedsToRefresh as $feed) {
+            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)
+                ->onQueue('feeds');
+        }
+        
+        $refreshedCount = $feedsToRefresh->count();
+        $skippedCount = $feeds->count() - $refreshedCount;
+        
+        $message = "Queued {$refreshedCount} feed(s) for refresh.";
+        if ($skippedCount > 0) {
+            $message .= " Skipped {$skippedCount} recently updated feed(s).";
+        }
+        
+        return back()->with('success', $message);
+    });
+    
+    // Save user preference
+    Route::post('/preferences', function (Request $request) {
+        $validated = $request->validate([
+            'key' => 'required|string',
+            'value' => 'required|string',
+        ]);
+        
+        \App\Models\UserPreference::set(
+            Auth::id(),
+            $validated['key'],
+            $validated['value']
+        );
+        
+        return back();
     });
     
     // OPML import route

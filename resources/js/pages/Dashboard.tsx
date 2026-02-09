@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { EntryList } from "@/components/EntryList";
+import { EntryCard } from "@/components/EntryCard";
 import { FeedForm } from "@/components/FeedForm";
 import { type BreadcrumbItem, type SharedData } from "@/types";
 import { Head, usePage } from "@inertiajs/react";
@@ -10,7 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid } from "lucide-react";
 import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
 import { dashboard } from '@/routes';
@@ -51,6 +53,7 @@ interface DashboardProps {
     name: string;
     color: string | null;
   }>;
+  entryViewMode: string;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -60,9 +63,11 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Dashboard({ stats, entries, categories }: DashboardProps) {
+export default function Dashboard({ stats, entries, categories, entryViewMode }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("unread");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+  const [viewMode, setViewMode] = useState(entryViewMode);
+  const [entryStates, setEntryStates] = useState<Record<string, { is_read?: boolean; is_saved?: boolean }>>({});
 
   const handleRefreshAllFeeds = () => {
     setIsRefreshingAll(true);
@@ -78,6 +83,34 @@ export default function Dashboard({ stats, entries, categories }: DashboardProps
       }
     });
   };
+
+  const handleViewModeChange = (value: string) => {
+    setViewMode(value);
+    router.post('/preferences', {
+      key: 'entry_view_mode',
+      value: value
+    });
+  };
+
+  const updateEntryState = (entryId: number, updates: { is_read?: boolean; is_saved?: boolean }) => {
+    setEntryStates(prev => ({
+      ...prev,
+      [entryId]: { ...prev[entryId], ...updates }
+    }));
+  };
+
+  const handleReadToggle = (entryId: number, isRead: boolean) => {
+    updateEntryState(entryId, { is_read: isRead });
+  };
+
+  const handleSaveToggle = (entryId: number, isSaved: boolean) => {
+    updateEntryState(entryId, { is_saved: isSaved });
+  };
+
+  const getEntryWithState = (entry: Entry) => ({
+    ...entry,
+    ...entryStates[entry.id]
+  });
 
   return (
     <AppLayout breadcrumbs={breadcrumbs}>
@@ -157,37 +190,87 @@ export default function Dashboard({ stats, entries, categories }: DashboardProps
 
         {/* Entries */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="unread" className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Unread
-              {stats.unreadCount > 0 && (
-                <Badge variant="secondary">{stats.unreadCount}</Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="all" className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              All Items
-            </TabsTrigger>
-            <TabsTrigger value="saved" className="flex items-center gap-2">
-              <Bookmark className="h-4 w-4" />
-              Saved
-              {stats.savedCount > 0 && (
-                <Badge variant="secondary">{stats.savedCount}</Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between">
+            <TabsList>
+              <TabsTrigger value="unread" className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                Unread
+                {stats.unreadCount > 0 && (
+                  <Badge variant="secondary">{stats.unreadCount}</Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" />
+                All Items
+              </TabsTrigger>
+              <TabsTrigger value="saved" className="flex items-center gap-2">
+                <Bookmark className="h-4 w-4" />
+                Saved
+                {stats.savedCount > 0 && (
+                  <Badge variant="secondary">{stats.savedCount}</Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+            
+            <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange}>
+              <ToggleGroupItem value="list" aria-label="List view">
+                <LayoutList className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="card" aria-label="Card view">
+                <LayoutGrid className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
 
           <TabsContent value="unread">
-            <EntryList entries={entries.unread} showUnreadOnly={true} />
+            {viewMode === 'list' ? (
+              <EntryList entries={entries.unread} showUnreadOnly={true} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {entries.unread.map((entry) => (
+                  <EntryCard
+                    key={entry.id}
+                    entry={getEntryWithState(entry)}
+                    onReadToggle={handleReadToggle}
+                    onSaveToggle={handleSaveToggle}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="all">
-            <EntryList entries={entries.all} />
+            {viewMode === 'list' ? (
+              <EntryList entries={entries.all} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {entries.all.map((entry) => (
+                  <EntryCard
+                    key={entry.id}
+                    entry={getEntryWithState(entry)}
+                    onReadToggle={handleReadToggle}
+                    onSaveToggle={handleSaveToggle}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="saved">
-            <EntryList entries={entries.saved} showSaved={true} />
+            {viewMode === 'list' ? (
+              <EntryList entries={entries.saved} showSaved={true} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {entries.saved.map((entry) => (
+                  <EntryCard
+                    key={entry.id}
+                    entry={getEntryWithState(entry)}
+                    onReadToggle={handleReadToggle}
+                    onSaveToggle={handleSaveToggle}
+                  />
+                ))}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>

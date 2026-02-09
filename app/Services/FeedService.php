@@ -460,7 +460,7 @@ class FeedService
             'title' => $this->cleanUtf8((string) ($entry->title ?? 'Untitled')),
             'url' => $this->getAtomLink($entry),
             'content' => $this->cleanUtf8($content),
-            'excerpt' => $this->cleanUtf8($this->generateExcerpt($content)),
+            'excerpt' => $this->cleanUtf8($this->getAtomExcerpt($entry)),
             'author' => $this->cleanUtf8($this->getAtomAuthor($entry)),
             'published_at' => $this->getAtomPublishedDate($entry),
             'thumbnail_url' => $this->getAtomThumbnail($entry),
@@ -563,7 +563,7 @@ class FeedService
             // Clean up any malformed UTF-8
             $title = $this->cleanUtf8($entryData['title'] ?? 'Untitled');
             $content = $this->cleanUtf8($entryData['content'] ?? '');
-            $excerpt = $this->cleanUtf8($entryData['excerpt'] ?? $this->generateExcerpt($content));
+            $excerpt = $this->cleanUtf8($entryData['excerpt'] ?? $this->generateExcerptFromContent($content));
             $author = $this->cleanUtf8($entryData['author'] ?? null);
             
             Entry::updateOrCreate(
@@ -588,6 +588,9 @@ class FeedService
         if (is_null($string)) {
             return null;
         }
+        
+        // Decode HTML entities first
+        $string = html_entity_decode($string, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         
         // Remove invalid UTF-8 sequences
         $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
@@ -684,5 +687,21 @@ class FeedService
         }
 
         return null;
+    }
+    
+    private function generateExcerptFromContent(string $content): string
+    {
+        // Strip HTML tags and limit to 300 characters
+        $excerpt = strip_tags($content);
+        if (strlen($excerpt) > 300) {
+            $excerpt = substr($excerpt, 0, 300);
+            // Cut at last space to avoid breaking words
+            $lastSpace = strrpos($excerpt, ' ');
+            if ($lastSpace !== false) {
+                $excerpt = substr($excerpt, 0, $lastSpace);
+            }
+            $excerpt .= '...';
+        }
+        return $excerpt;
     }
 }

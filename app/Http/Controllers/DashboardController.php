@@ -6,6 +6,7 @@ use App\Models\Feed;
 use App\Models\Category;
 use App\Models\SavedItem;
 use App\Models\UserEntryRead;
+use App\Models\UserPreference;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -97,10 +98,14 @@ class DashboardController extends Controller
         // Get categories for the feed form
         $categories = $user->categories()->orderBy('sort_order')->get();
         
+        // Get user's view preference
+        $entryViewMode = UserPreference::get($user->id, 'entry_view_mode', 'list');
+        
         return inertia('Dashboard', [
             'stats' => $stats,
             'entries' => $entries,
             'categories' => $categories,
+            'entryViewMode' => $entryViewMode,
         ]);
     }
     
@@ -109,6 +114,9 @@ class DashboardController extends Controller
         if (is_null($string)) {
             return null;
         }
+        
+        // Decode HTML entities first
+        $string = html_entity_decode($string, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         
         // Remove invalid UTF-8 sequences
         $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');

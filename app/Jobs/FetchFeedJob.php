@@ -37,7 +37,7 @@ class FetchFeedJob implements ShouldQueue
     public function handle(FeedService $feedService): void
     {
         try {
-            Log::info('FetchFeedJob started', [
+            Log::debug('FetchFeedJob started', [
                 'feed_url' => $this->feedUrl,
                 'user_id' => $this->userId,
                 'category_id' => $this->categoryId,
@@ -59,7 +59,7 @@ class FetchFeedJob implements ShouldQueue
                 return;
             }
 
-            Log::info('Feed data discovered', [
+            Log::debug('Feed data discovered', [
                 'title' => $feedData['title'] ?? 'Unknown',
                 'entries_count' => count($feedData['entries'] ?? [])
             ]);
@@ -82,7 +82,7 @@ class FetchFeedJob implements ShouldQueue
             // Update last fetched timestamp
             $feed->update(['last_fetched_at' => now()]);
             
-            Log::info('FetchFeedJob completed successfully', ['feed_id' => $feed->id]);
+            Log::debug('FetchFeedJob completed successfully', ['feed_id' => $feed->id]);
 
         } catch (ConnectionException $e) {
             Log::warning('Feed connection failed', [

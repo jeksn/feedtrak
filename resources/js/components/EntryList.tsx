@@ -205,15 +205,16 @@ export function EntryList({
                     <DropdownMenuItem
                       onClick={() => handleToggleRead(entry.id, entry.is_read, entry.read_id)}
                       disabled={isUpdating === entry.id}
+                      className="cursor-pointer"
                     	>
                       {entry.is_read ? (
                         <>
-                          <EyeOff className="h-4 w-4 mr-2 cursor-pointer" />
+                          <EyeOff className="h-4 w-4 mr-2" />
                           Mark as unread
                         </>
                       ) : (
                         <>
-                          <Eye className="h-4 w-4 mr-2 cursor-pointer" />
+                          <Eye className="h-4 w-4 mr-2" />
                           Mark as read
                         </>
                       )}
@@ -221,15 +222,16 @@ export function EntryList({
                     <DropdownMenuItem
                       onClick={() => handleToggleSaved(entry.id, entry.is_saved, entry.saved_id)}
                       disabled={isUpdating === entry.id}
+                      className="cursor-pointer"
                     >
                       {entry.is_saved ? (
                         <>
-                          <Bookmark className="h-4 w-4 mr-2 cursor-pointer" />
+                          <Bookmark className="h-4 w-4 mr-2" />
                           Remove from saved
                         </>
                       ) : (
                         <>
-                          <BookmarkCheck className="h-4 w-4 mr-2 cursor-pointer" />
+                          <BookmarkCheck className="h-4 w-4 mr-2" />
                           Save for later
                         </>
                       )}

@@ -30,16 +30,7 @@ class DashboardController extends Controller
         
         // Get stats
         $totalFeeds = $user->feeds()->count();
-        $unreadCount = $user->entryReads()
-            ->where('is_read', false)
-            ->count();
         $savedCount = $user->savedItems()->count();
-        
-        $stats = [
-            'totalFeeds' => $totalFeeds,
-            'unreadCount' => $unreadCount,
-            'savedCount' => $savedCount,
-        ];
         
         // Get entries for different tabs
         $allEntries = $user->feeds()
@@ -88,6 +79,12 @@ class DashboardController extends Controller
         
         $unreadEntries = $allEntries->where('is_read', false)->values();
         $savedEntries = $allEntries->where('is_saved', true)->values();
+        
+        $stats = [
+            'totalFeeds' => $totalFeeds,
+            'unreadCount' => $unreadEntries->count(),
+            'savedCount' => $savedCount,
+        ];
         
         $entries = [
             'all' => $allEntries->values(),

@@ -106,7 +106,7 @@ export function EntryCard({ entry, onReadToggle, onSaveToggle }: EntryCardProps)
                 href={entry.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-blue-600 transition-colors"
+                className="hover:text-blue-600 transition-colors cursor-pointer"
                 onClick={(e) => {
                   if (!entry.is_read) {
                     handleMarkAsRead();

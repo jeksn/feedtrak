@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 use App\Models\UserPreference;
+use App\Models\Entry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -104,19 +105,25 @@ class DashboardController extends Controller
         });
         
         // Get unread and saved entries (limited for performance)
-        $unreadEntries = $user->feeds()
-            ->join('entries', 'entries.feed_id', '=', 'feeds.id')
+        $unreadEntries = DB::table('entries')
+            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
+            ->join('user_feeds', function ($join) use ($user) {
+                $join->on('user_feeds.feed_id', '=', 'feeds.id')
+                     ->where('user_feeds.user_id', '=', $user->id);
+            })
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                     ->where('user_entry_reads.user_id', '=', $user->id)
-                     ->where('user_entry_reads.is_read', '=', false);
+                     ->where('user_entry_reads.user_id', '=', $user->id);
             })
-            ->whereNull('user_entry_reads.id')
+            ->where(function ($query) {
+                $query->whereNull('user_entry_reads.id')
+                      ->orWhere('user_entry_reads.is_read', '=', false);
+            })
             ->select('entries.*', 'feeds.title as feed_title', 'feeds.url as feed_url')
             ->orderBy('entries.published_at', 'desc')
             ->limit(50)
             ->get()
-            ->map(function ($entry) use ($user) {
+            ->map(function ($entry) {
                 return [
                     'id' => $entry->id,
                     'title' => $this->cleanUtf8($entry->title),
@@ -229,15 +236,62 @@ class DashboardController extends Controller
             return null;
         }
         
-        // Decode HTML entities first
+        // Decode HTML entities
         $string = html_entity_decode($string, ENT_QUOTES | ENT_HTML5, 'UTF-8');
         
         // Remove invalid UTF-8 sequences
-        $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+        return mb_convert_encoding($string, 'UTF-8', 'UTF-8');
+    }
+    
+    public function markAsRead(Request $request, Entry $entry)
+    {
+        $user = Auth::user();
         
-        // Remove any remaining non-UTF-8 characters
-        $string = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
+        // Verify user has access to this entry
+        $hasAccess = $user->feeds()
+            ->whereHas('entries', function ($q) use ($entry) {
+                $q->where('id', $entry->id);
+            })->exists();
+
+        if (!$hasAccess) {
+            abort(403);
+        }
+
+        UserEntryRead::updateOrCreate([
+            'user_id' => $user->id,
+            'entry_id' => $entry->id,
+        ], [
+            'is_read' => true,
+            'read_at' => now(),
+        ]);
+
+        if ($request->header('X-Fetch')) {
+            return response()->json(['success' => true]);
+        }
+
+        return back();
+    }
+    
+    public function markAsUnread(Request $request, Entry $entry)
+    {
+        $user = Auth::user();
         
-        return $string;
+        $readStatus = UserEntryRead::where([
+            'user_id' => $user->id,
+            'entry_id' => $entry->id,
+        ])->first();
+
+        if ($readStatus) {
+            $readStatus->update([
+                'is_read' => false,
+                'read_at' => null,
+            ]);
+        }
+
+        if ($request->header('X-Fetch')) {
+            return response()->json(['success' => true]);
+        }
+
+        return back();
     }
 }

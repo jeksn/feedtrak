@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Bookmark, Check, Clock, Image as ImageIcon } from "lucide-react";
-import { router } from "@inertiajs/react";
+import { router, Link } from '@inertiajs/react';
 import { formatDistanceToNow, format } from "date-fns";
 
 interface Entry {
@@ -47,36 +47,57 @@ const formatRelativeTime = (dateString: string) => {
 };
 
 export function EntryCard({ entry, onReadToggle, onSaveToggle }: EntryCardProps) {
+  const getXsrfToken = () => {
+    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  };
+
   const handleTitleClick = (e: React.MouseEvent) => {
-    // Mark as read first
     if (!entry.is_read) {
       handleMarkAsRead();
     }
-    // Then open the link in a new tab
     window.open(entry.url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleMarkAsRead = () => {
-    router.post(`/entries/${entry.id}/read`, {}, {
-      onSuccess: () => {
-        onReadToggle?.(entry.id, true);
+  const handleMarkAsRead = async () => {
+    onReadToggle?.(entry.id, true);
+    try {
+      const res = await fetch(`/entries/${entry.id}/read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': getXsrfToken(),
+          'X-Fetch': 'true',
+        },
+      });
+      if (!res.ok) {
+        onReadToggle?.(entry.id, false);
       }
-    });
+    } catch {
+      onReadToggle?.(entry.id, false);
+    }
   };
 
-  const handleSave = () => {
-    if (entry.is_saved) {
-      router.delete(`/saved-items/${entry.saved_id}`, {
-        onSuccess: () => {
-          onSaveToggle?.(entry.id, false);
-        }
+  const handleSave = async () => {
+    const newSaved = !entry.is_saved;
+    onSaveToggle?.(entry.id, newSaved);
+    try {
+      const method = entry.is_saved ? 'DELETE' : 'POST';
+      const res = await fetch(`/entries/${entry.id}/save`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-XSRF-TOKEN': getXsrfToken(),
+          'X-Fetch': 'true',
+        },
       });
-    } else {
-      router.post(`/saved-items`, { entry_id: entry.id }, {
-        onSuccess: () => {
-          onSaveToggle?.(entry.id, true);
-        }
-      });
+      if (!res.ok) {
+        onSaveToggle?.(entry.id, entry.is_saved);
+      }
+    } catch {
+      onSaveToggle?.(entry.id, entry.is_saved);
     }
   };
 

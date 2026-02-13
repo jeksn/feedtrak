@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\FetchEntryThumbnail;
 use App\Models\Feed;
 use App\Models\Entry;
 use Illuminate\Support\Facades\Http;
@@ -566,7 +567,7 @@ class FeedService
             $excerpt = $this->cleanUtf8($entryData['excerpt'] ?? $this->generateExcerptFromContent($content));
             $author = $this->cleanUtf8($entryData['author'] ?? null);
             
-            Entry::updateOrCreate(
+            $entry = Entry::updateOrCreate(
                 [
                     'feed_id' => $feed->id,
                     'url' => $entryData['url'],
@@ -580,6 +581,10 @@ class FeedService
                     'thumbnail_url' => $entryData['thumbnail_url'] ?? null,
                 ]
             );
+
+            if (!$entry->thumbnail_url && $entry->url) {
+                FetchEntryThumbnail::dispatch($entry);
+            }
         }
     }
     
@@ -642,6 +647,15 @@ class FeedService
             }
         }
 
+        // Extract first image from content/description
+        $content = $this->getContent($item);
+        if ($content && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', $content, $matches)) {
+            $src = $matches[1];
+            if (filter_var($src, FILTER_VALIDATE_URL)) {
+                return $src;
+            }
+        }
+
         return null;
     }
 
@@ -684,6 +698,15 @@ class FeedService
         if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $link, $matches)) {
             $videoId = $matches[1];
             return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
+        }
+
+        // Extract first image from content
+        $content = $this->getAtomContent($entry);
+        if ($content && preg_match('/<img[^>]+src=["\']([^"\']+)["\']/', $content, $matches)) {
+            $src = $matches[1];
+            if (filter_var($src, FILTER_VALIDATE_URL)) {
+                return $src;
+            }
         }
 
         return null;

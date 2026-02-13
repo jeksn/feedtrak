@@ -76,8 +76,11 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
   const [viewMode, setViewMode] = useState(entryViewMode);
   const [currentPage, setCurrentPage] = useState(pagination?.current_page || 1);
   const [allEntries, setAllEntries] = useState<Entry[]>(entries.all || []);
+  const [unreadEntries, setUnreadEntries] = useState<Entry[]>(entries.unread || []);
+  const [savedEntries, setSavedEntries] = useState<Entry[]>(entries.saved || []);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [entryStates, setEntryStates] = useState<Record<string, { is_read?: boolean; is_saved?: boolean }>>({});
+  const [unreadCount, setUnreadCount] = useState(stats.unreadCount);
+  const [savedCount, setSavedCount] = useState(stats.savedCount);
 
   const handleRefreshAllFeeds = () => {
     setIsRefreshingAll(true);
@@ -102,25 +105,41 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     });
   };
 
-  const updateEntryState = (entryId: number, updates: { is_read?: boolean; is_saved?: boolean }) => {
-    setEntryStates(prev => ({
-      ...prev,
-      [entryId]: { ...prev[entryId], ...updates }
-    }));
-  };
-
   const handleReadToggle = (entryId: number, isRead: boolean) => {
-    updateEntryState(entryId, { is_read: isRead });
+    // Update in all lists
+    setAllEntries(prev => prev.map(e => e.id === entryId ? { ...e, is_read: isRead } : e));
+    
+    if (isRead) {
+      // Remove from unread list
+      setUnreadEntries(prev => prev.filter(e => e.id !== entryId));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } else {
+      // Add back to unread list (find from allEntries)
+      const entry = allEntries.find(e => e.id === entryId);
+      if (entry) {
+        setUnreadEntries(prev => [{ ...entry, is_read: false }, ...prev].sort(
+          (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+        ));
+      }
+      setUnreadCount(prev => prev + 1);
+    }
   };
 
   const handleSaveToggle = (entryId: number, isSaved: boolean) => {
-    updateEntryState(entryId, { is_saved: isSaved });
+    setAllEntries(prev => prev.map(e => e.id === entryId ? { ...e, is_saved: isSaved } : e));
+    setUnreadEntries(prev => prev.map(e => e.id === entryId ? { ...e, is_saved: isSaved } : e));
+    
+    if (isSaved) {
+      const entry = allEntries.find(e => e.id === entryId) || unreadEntries.find(e => e.id === entryId);
+      if (entry) {
+        setSavedEntries(prev => [{ ...entry, is_saved: true }, ...prev]);
+      }
+      setSavedCount(prev => prev + 1);
+    } else {
+      setSavedEntries(prev => prev.filter(e => e.id !== entryId));
+      setSavedCount(prev => Math.max(0, prev - 1));
+    }
   };
-
-  const getEntryWithState = (entry: Entry) => ({
-    ...entry,
-    ...entryStates[entry.id]
-  });
 
   const loadMoreEntries = () => {
     if (!pagination?.has_more || isLoadingMore || activeTab !== 'all') return;
@@ -131,7 +150,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     router.get('/', { page: nextPage }, {
       preserveState: true,
       preserveScroll: true,
-      onSuccess: (page) => {
+      onSuccess: (page: any) => {
         const newEntries = page.props.entries.all as Entry[];
         setAllEntries(prev => [...prev, ...newEntries]);
         setCurrentPage(nextPage);
@@ -226,8 +245,8 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
               <TabsTrigger value="unread" className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
                 Unread
-                {stats.unreadCount > 0 && (
-                  <Badge variant="secondary">{stats.unreadCount}</Badge>
+                {unreadCount > 0 && (
+                  <Badge variant="secondary">{unreadCount}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="all" className="flex items-center gap-2">
@@ -237,8 +256,8 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
               <TabsTrigger value="saved" className="flex items-center gap-2">
                 <Bookmark className="h-4 w-4" />
                 Saved
-                {stats.savedCount > 0 && (
-                  <Badge variant="secondary">{stats.savedCount}</Badge>
+                {savedCount > 0 && (
+                  <Badge variant="secondary">{savedCount}</Badge>
                 )}
               </TabsTrigger>
             </TabsList>
@@ -255,13 +274,13 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
 
           <TabsContent value="unread">
             {viewMode === 'list' ? (
-              <EntryList entries={entries.unread} showUnreadOnly={true} />
+              <EntryList entries={unreadEntries} showUnreadOnly={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {entries.unread.map((entry) => (
+                {unreadEntries.map((entry) => (
                   <EntryCard
                     key={entry.id}
-                    entry={getEntryWithState(entry)}
+                    entry={entry}
                     onReadToggle={handleReadToggle}
                     onSaveToggle={handleSaveToggle}
                   />
@@ -273,7 +292,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
           <TabsContent value="all">
             {viewMode === 'list' ? (
               <div className="space-y-4">
-                <EntryList entries={allEntries} />
+                <EntryList entries={allEntries} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
                 {pagination?.has_more && (
                   <div className="flex justify-center">
                     <Button
@@ -302,7 +321,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
                   {allEntries.map((entry) => (
                     <EntryCard
                       key={entry.id}
-                      entry={getEntryWithState(entry)}
+                      entry={entry}
                       onReadToggle={handleReadToggle}
                       onSaveToggle={handleSaveToggle}
                     />
@@ -335,13 +354,13 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
 
           <TabsContent value="saved">
             {viewMode === 'list' ? (
-              <EntryList entries={entries.saved} showSaved={true} />
+              <EntryList entries={savedEntries} showSaved={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {entries.saved.map((entry) => (
+                {savedEntries.map((entry) => (
                   <EntryCard
                     key={entry.id}
-                    entry={getEntryWithState(entry)}
+                    entry={entry}
                     onReadToggle={handleReadToggle}
                     onSaveToggle={handleSaveToggle}
                   />

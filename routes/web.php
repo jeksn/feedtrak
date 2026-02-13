@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Feed;
 use App\Models\SavedItem;
 use App\Models\UserEntryRead;
+use App\Http\Controllers\DashboardController;
 
 Route::get('/', function () {
     if (Auth::check()) {
@@ -450,45 +451,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('feeds.import-opml');
     
     // Entry routes
-    Route::post('/entries/{entry}/read', function (\App\Models\Entry $entry) {
-        // Verify user has access to this entry
-        $hasAccess = Auth::user()->feeds()
-            ->whereHas('entries', function ($q) use ($entry) {
-                $q->where('id', $entry->id);
-            })->exists();
-
-        if (!$hasAccess) {
-            abort(403);
-        }
-
-        UserEntryRead::updateOrCreate([
-            'user_id' => Auth::id(),
-            'entry_id' => $entry->id,
-        ], [
-            'is_read' => true,
-            'read_at' => now(),
-        ]);
-
-        return response()->json(['success' => true]);
-    });
+    Route::post('/entries/{entry}/read', [DashboardController::class, 'markAsRead']);
     
-    Route::delete('/entries/{entry}/read', function (\App\Models\Entry $entry) {
-        $readStatus = UserEntryRead::where([
-            'user_id' => Auth::id(),
-            'entry_id' => $entry->id,
-        ])->first();
-
-        if ($readStatus) {
-            $readStatus->update([
-                'is_read' => false,
-                'read_at' => null,
-            ]);
-        }
-
-        return response()->json(['success' => true]);
-    });
+    Route::delete('/entries/{entry}/read', [DashboardController::class, 'markAsUnread']);
     
-    Route::post('/entries/{entry}/save', function (\App\Models\Entry $entry) {
+    Route::post('/entries/{entry}/save', function (\App\Models\Entry $entry, Request $request) {
         // Verify user has access to this entry
         $hasAccess = Auth::user()->feeds()
             ->whereHas('entries', function ($q) use ($entry) {
@@ -504,10 +471,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'entry_id' => $entry->id,
         ]);
 
+        if ($request->header('X-Fetch')) {
+            return response()->json(['success' => true]);
+        }
+
         return back();
     });
     
-    Route::delete('/entries/{entry}/save', function (\App\Models\Entry $entry) {
+    Route::delete('/entries/{entry}/save', function (\App\Models\Entry $entry, Request $request) {
         $savedItem = SavedItem::where([
             'user_id' => Auth::id(),
             'entry_id' => $entry->id,
@@ -515,6 +486,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         if ($savedItem) {
             $savedItem->delete();
+        }
+
+        if ($request->header('X-Fetch')) {
+            return response()->json(['success' => true]);
         }
 
         return back();

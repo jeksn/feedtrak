@@ -20,7 +20,7 @@ class FeedFactory extends Factory
             'url' => $this->faker->url(),
             'title' => $this->faker->sentence(3),
             'description' => $this->faker->paragraph(),
-            'feed_url' => $this->faker->url() . '/feed.xml',
+            'feed_url' => $this->faker->url().'/feed.xml',
             'type' => 'rss',
             'icon_url' => null,
             'last_fetched_at' => null,

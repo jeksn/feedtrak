@@ -19,9 +19,7 @@ class FetchEntryThumbnail implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct(public Entry $entry)
-    {
-    }
+    public function __construct(public Entry $entry) {}
 
     /**
      * Execute the job.
@@ -32,7 +30,7 @@ class FetchEntryThumbnail implements ShouldQueue
             return;
         }
 
-        if (!$this->entry->url) {
+        if (! $this->entry->url) {
             return;
         }
 
@@ -43,7 +41,7 @@ class FetchEntryThumbnail implements ShouldQueue
                 ])
                 ->get($this->entry->url);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return;
             }
 
@@ -77,6 +75,7 @@ class FetchEntryThumbnail implements ShouldQueue
         if (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']/', $html, $matches)) {
             return $matches[1];
         }
+
         return null;
     }
 
@@ -88,6 +87,7 @@ class FetchEntryThumbnail implements ShouldQueue
         if (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']twitter:image["\']/', $html, $matches)) {
             return $matches[1];
         }
+
         return null;
     }
 
@@ -103,8 +103,10 @@ class FetchEntryThumbnail implements ShouldQueue
             if (str_starts_with($src, 'data:')) {
                 return null;
             }
+
             return $src;
         }
+
         return null;
     }
 
@@ -119,14 +121,15 @@ class FetchEntryThumbnail implements ShouldQueue
         $host = $parsed['host'] ?? '';
 
         if (str_starts_with($url, '//')) {
-            return $scheme . ':' . $url;
+            return $scheme.':'.$url;
         }
 
         if (str_starts_with($url, '/')) {
-            return $scheme . '://' . $host . $url;
+            return $scheme.'://'.$host.$url;
         }
 
         $basePath = isset($parsed['path']) ? dirname($parsed['path']) : '';
-        return $scheme . '://' . $host . $basePath . '/' . $url;
+
+        return $scheme.'://'.$host.$basePath.'/'.$url;
     }
 }

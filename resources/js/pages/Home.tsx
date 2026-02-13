@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid, ChevronDown } from "lucide-react";
+import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid, ChevronDown, CheckCheck } from "lucide-react";
 import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
 import { dashboard } from '@/routes';
@@ -58,7 +58,6 @@ interface DashboardProps {
   categories: Array<{
     id: number;
     name: string;
-    color: string | null;
   }>;
   entryViewMode: string;
 }
@@ -81,6 +80,23 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [unreadCount, setUnreadCount] = useState(stats.unreadCount);
   const [savedCount, setSavedCount] = useState(stats.savedCount);
+
+  const handleMarkAllAsRead = () => {
+    // Optimistic update
+    setUnreadEntries([]);
+    setUnreadCount(0);
+    setAllEntries(prev => prev.map(e => ({ ...e, is_read: true })));
+
+    router.post('/entries/mark-all-read', {}, {
+      onSuccess: () => {
+        router.reload();
+      },
+      onError: () => {
+        // Revert on error
+        router.reload();
+      }
+    });
+  };
 
   const handleRefreshAllFeeds = () => {
     setIsRefreshingAll(true);
@@ -262,14 +278,26 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
               </TabsTrigger>
             </TabsList>
             
-            <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange}>
-              <ToggleGroupItem value="list" aria-label="List view">
-                <LayoutList className="h-4 w-4" />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="card" aria-label="Card view">
-                <LayoutGrid className="h-4 w-4" />
-              </ToggleGroupItem>
-            </ToggleGroup>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMarkAllAsRead}
+                disabled={unreadCount === 0}
+                className="gap-2"
+              >
+                <CheckCheck className="h-4 w-4" />
+                Mark All as Read
+              </Button>
+              <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange}>
+                <ToggleGroupItem value="list" aria-label="List view">
+                  <LayoutList className="h-4 w-4" />
+                </ToggleGroupItem>
+                <ToggleGroupItem value="card" aria-label="Card view">
+                  <LayoutGrid className="h-4 w-4" />
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </div>
 
           <TabsContent value="unread">

@@ -2,12 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Entry;
 use App\Models\Feed;
-use App\Models\Category;
-use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 use App\Models\UserPreference;
-use App\Models\Entry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,41 +15,41 @@ class DashboardController extends Controller
     public function __invoke(Request $request)
     {
         $user = Auth::user();
-        
+
         // Auto-refresh stale feeds (older than 30 minutes)
         $staleFeeds = $user->feeds()
             ->where(function ($query) {
                 $query->whereNull('last_fetched_at')
-                      ->orWhere('last_fetched_at', '<', now()->subMinutes(30));
+                    ->orWhere('last_fetched_at', '<', now()->subMinutes(30));
             })
             ->get();
-            
+
         foreach ($staleFeeds as $feed) {
             \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
         }
-        
+
         // Get stats
         $totalFeeds = $user->feeds()->count();
         $savedCount = $user->savedItems()->count();
-        
+
         // Get entries for different tabs with pagination
         $page = request()->get('page', 1);
         $perPage = 20;
-        
+
         // Get all entries query
         $entriesQuery = DB::table('entries')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->join('user_feeds', function ($join) use ($user) {
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                     ->where('user_feeds.user_id', '=', $user->id);
+                    ->where('user_feeds.user_id', '=', $user->id);
             })
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                     ->where('user_entry_reads.user_id', '=', $user->id);
+                    ->where('user_entry_reads.user_id', '=', $user->id);
             })
             ->leftJoin('saved_items', function ($join) use ($user) {
                 $join->on('saved_items.entry_id', '=', 'entries.id')
-                     ->where('saved_items.user_id', '=', $user->id);
+                    ->where('saved_items.user_id', '=', $user->id);
             })
             ->select([
                 'entries.id',
@@ -70,19 +68,19 @@ class DashboardController extends Controller
                 'saved_items.id as saved_id',
             ])
             ->orderBy('entries.published_at', 'desc');
-        
+
         // Get paginated entries
         $paginatedEntries = $entriesQuery->paginate($perPage, ['*'], 'page', $page);
-        
+
         // Format entries for frontend
-        $allEntries = $paginatedEntries->getCollection()->map(function ($entry) use ($user) {
+        $allEntries = $paginatedEntries->getCollection()->map(function ($entry) {
             // Clean up any malformed UTF-8
             $title = $this->cleanUtf8($entry->title);
             $content = $this->cleanUtf8($entry->content);
             $excerpt = $this->cleanUtf8($entry->excerpt);
             $author = $this->cleanUtf8($entry->author);
             $feedTitle = $this->cleanUtf8($entry->feed_title);
-                
+
             return [
                 'id' => $entry->id,
                 'title' => $title,
@@ -103,21 +101,21 @@ class DashboardController extends Controller
                 'saved_id' => $entry->saved_id,
             ];
         });
-        
+
         // Get unread and saved entries (limited for performance)
         $unreadEntries = DB::table('entries')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->join('user_feeds', function ($join) use ($user) {
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                     ->where('user_feeds.user_id', '=', $user->id);
+                    ->where('user_feeds.user_id', '=', $user->id);
             })
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                     ->where('user_entry_reads.user_id', '=', $user->id);
+                    ->where('user_entry_reads.user_id', '=', $user->id);
             })
             ->where(function ($query) {
                 $query->whereNull('user_entry_reads.id')
-                      ->orWhere('user_entry_reads.is_read', '=', false);
+                    ->orWhere('user_entry_reads.is_read', '=', false);
             })
             ->select('entries.*', 'feeds.title as feed_title', 'feeds.url as feed_url')
             ->orderBy('entries.published_at', 'desc')
@@ -144,13 +142,13 @@ class DashboardController extends Controller
                     'saved_id' => null,
                 ];
             });
-            
+
         $savedEntries = DB::table('saved_items')
             ->join('entries', 'entries.id', '=', 'saved_items.entry_id')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                     ->where('user_entry_reads.user_id', '=', $user->id);
+                    ->where('user_entry_reads.user_id', '=', $user->id);
             })
             ->where('saved_items.user_id', '=', $user->id)
             ->select([
@@ -193,7 +191,7 @@ class DashboardController extends Controller
                     'saved_id' => $savedItem->saved_id,
                 ];
             });
-        
+
         // Prepare pagination data
         $paginationData = [
             'current_page' => $paginatedEntries->currentPage(),
@@ -202,25 +200,25 @@ class DashboardController extends Controller
             'total' => $paginatedEntries->total(),
             'has_more' => $paginatedEntries->hasMorePages(),
         ];
-        
+
         $stats = [
             'totalFeeds' => $totalFeeds,
             'unreadCount' => $unreadEntries->count(),
             'savedCount' => $savedCount,
         ];
-        
+
         $entries = [
             'all' => $allEntries->values(),
             'unread' => $unreadEntries,
             'saved' => $savedEntries,
         ];
-        
+
         // Get categories for the feed form
         $categories = $user->categories()->orderBy('sort_order')->get();
-        
+
         // Get user's view preference
         $entryViewMode = UserPreference::get($user->id, 'entry_view_mode', 'list');
-        
+
         return inertia('Home', [
             'stats' => $stats,
             'entries' => $entries,
@@ -229,31 +227,31 @@ class DashboardController extends Controller
             'entryViewMode' => $entryViewMode,
         ]);
     }
-    
+
     private function cleanUtf8($string)
     {
         if (is_null($string)) {
             return null;
         }
-        
+
         // Decode HTML entities
         $string = html_entity_decode($string, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        
+
         // Remove invalid UTF-8 sequences
         return mb_convert_encoding($string, 'UTF-8', 'UTF-8');
     }
-    
+
     public function markAsRead(Request $request, Entry $entry)
     {
         $user = Auth::user();
-        
+
         // Verify user has access to this entry
         $hasAccess = $user->feeds()
             ->whereHas('entries', function ($q) use ($entry) {
                 $q->where('id', $entry->id);
             })->exists();
 
-        if (!$hasAccess) {
+        if (! $hasAccess) {
             abort(403);
         }
 
@@ -271,11 +269,11 @@ class DashboardController extends Controller
 
         return back();
     }
-    
+
     public function markAsUnread(Request $request, Entry $entry)
     {
         $user = Auth::user();
-        
+
         $readStatus = UserEntryRead::where([
             'user_id' => $user->id,
             'entry_id' => $entry->id,

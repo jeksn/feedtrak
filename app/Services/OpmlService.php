@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Category;
 use App\Models\Feed;
 use App\Models\UserFeed;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use SimpleXMLElement;
 
@@ -15,24 +14,24 @@ class OpmlService
     {
         // Fix common encoding issues
         $opmlContent = $this->fixEncoding($opmlContent);
-        
+
         // Remove BOM if present
         $opmlContent = preg_replace('/^\xEF\xBB\xBF/', '', $opmlContent);
-        
+
         // Ensure content is valid XML
         libxml_use_internal_errors(true);
-        
+
         $xml = simplexml_load_string($opmlContent, SimpleXMLElement::class, LIBXML_NOCDATA | LIBXML_NONET | LIBXML_NOENT);
-        
-        if (!$xml) {
+
+        if (! $xml) {
             $errors = libxml_get_errors();
             libxml_clear_errors();
-            
+
             $errorMessages = array_map(function ($error) {
                 return "Line {$error->line}: {$error->message}";
             }, $errors);
-            
-            throw new \InvalidArgumentException('Invalid OPML file format: ' . implode(', ', $errorMessages));
+
+            throw new \InvalidArgumentException('Invalid OPML file format: '.implode(', ', $errorMessages));
         }
 
         $result = [
@@ -42,11 +41,11 @@ class OpmlService
 
         // Find the body element
         $body = $xml->body;
-        
-        if (!$body) {
+
+        if (! $body) {
             throw new \InvalidArgumentException('Invalid OPML: missing body element');
         }
-        
+
         // Process each outline element
         foreach ($body->outline as $outline) {
             $this->processOutline($outline, null, $result);
@@ -54,51 +53,51 @@ class OpmlService
 
         return $result;
     }
-    
+
     private function fixEncoding(string $content): string
     {
         // Convert to UTF-8 if needed
         if (function_exists('mb_check_encoding')) {
-            if (!mb_check_encoding($content, 'UTF-8')) {
+            if (! mb_check_encoding($content, 'UTF-8')) {
                 // Try to detect encoding
                 $encodings = ['UTF-8', 'ISO-8859-1', 'Windows-1252'];
-                
+
                 foreach ($encodings as $encoding) {
                     if (mb_check_encoding($content, $encoding)) {
                         $content = mb_convert_encoding($content, 'UTF-8', $encoding);
                         break;
                     }
                 }
-                
+
                 // If still not UTF-8, force conversion
-                if (!mb_check_encoding($content, 'UTF-8')) {
+                if (! mb_check_encoding($content, 'UTF-8')) {
                     $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
                 }
             }
         }
-        
+
         // Remove invalid UTF-8 sequences
         $content = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $content);
-        
+
         return $content;
     }
 
     private function processOutline(SimpleXMLElement $outline, ?string $parentCategory, array &$result): void
     {
         $attributes = $outline->attributes();
-        
+
         // Check if this is a category (has children but no xmlUrl)
-        if (isset($outline->outline) && !isset($attributes->xmlUrl)) {
+        if (isset($outline->outline) && ! isset($attributes->xmlUrl)) {
             $categoryName = (string) ($attributes->title ?? $attributes->text ?? 'Uncategorized');
-            
+
             // Add category if not already added
-            if (!isset($result['categories'][$categoryName])) {
+            if (! isset($result['categories'][$categoryName])) {
                 $result['categories'][$categoryName] = [
                     'name' => $categoryName,
                     'feeds' => [],
                 ];
             }
-            
+
             // Process child outlines
             foreach ($outline->outline as $childOutline) {
                 $this->processOutline($childOutline, $categoryName, $result);
@@ -113,9 +112,9 @@ class OpmlService
                 'description' => (string) ($attributes->description ?? ''),
                 'category' => $parentCategory,
             ];
-            
+
             $result['feeds'][] = $feedData;
-            
+
             // Add to category if specified
             if ($parentCategory && isset($result['categories'][$parentCategory])) {
                 $result['categories'][$parentCategory]['feeds'][] = $feedData;
@@ -127,10 +126,10 @@ class OpmlService
     {
         // Increase time limit for large imports
         set_time_limit(300); // 5 minutes
-        
+
         try {
             $parsed = $this->parseOpml($opmlContent);
-            
+
             $imported = [
                 'categories_created' => 0,
                 'feeds_imported' => 0,
@@ -152,7 +151,7 @@ class OpmlService
             // Process categories and create new ones if needed
             foreach ($parsed['categories'] as $categoryData) {
                 $categoryName = $categoryData['name'];
-                
+
                 // Skip if category already exists
                 if (isset($existingCategories[$categoryName])) {
                     $categoryId = $existingCategories[$categoryName];
@@ -161,10 +160,9 @@ class OpmlService
                     $category = Category::create([
                         'user_id' => $userId,
                         'name' => $categoryName,
-                        'color' => $this->generateRandomColor(),
                         'sort_order' => Category::where('user_id', $userId)->max('sort_order') + 1,
                     ]);
-                    
+
                     $categoryId = $category->id;
                     $existingCategories[$categoryName] = $categoryId;
                     $imported['categories_created']++;
@@ -190,8 +188,8 @@ class OpmlService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-            
-            throw new \RuntimeException('Failed to import OPML: ' . $e->getMessage());
+
+            throw new \RuntimeException('Failed to import OPML: '.$e->getMessage());
         }
     }
 
@@ -200,6 +198,7 @@ class OpmlService
         // Skip if already subscribed
         if (in_array($feedData['feed_url'], $existingFeedUrls)) {
             $imported['feeds_skipped']++;
+
             return;
         }
 
@@ -207,15 +206,16 @@ class OpmlService
             // Use FeedService to discover and create the feed
             $feedService = app(FeedService::class);
             $discoveredFeed = $feedService->discoverFeed($feedData['feed_url']);
-            
-            if (!$discoveredFeed) {
+
+            if (! $discoveredFeed) {
                 $imported['errors'][] = "Could not fetch feed: {$feedData['title']}";
+
                 return;
             }
 
             // Create or update feed
             $feed = $feedService->createOrUpdateFeed($discoveredFeed);
-            
+
             // Create user feed relationship
             UserFeed::create([
                 'user_id' => $userId,
@@ -226,9 +226,9 @@ class OpmlService
 
             // Add to existing URLs to avoid duplicates
             $existingFeedUrls[] = $feedData['feed_url'];
-            
+
             $imported['feeds_imported']++;
-            
+
             // Don't dispatch job immediately - let it happen in the background
             // Queue initial fetch without blocking
             \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
@@ -237,20 +237,8 @@ class OpmlService
                 'feed_url' => $feedData['feed_url'],
                 'error' => $e->getMessage(),
             ]);
-            
+
             $imported['errors'][] = "Failed to import feed: {$feedData['title']} - {$e->getMessage()}";
         }
-    }
-
-    private function generateRandomColor(): string
-    {
-        $colors = [
-            '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
-            '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9',
-            '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
-            '#ec4899', '#f43f5e',
-        ];
-        
-        return $colors[array_rand($colors)];
     }
 }

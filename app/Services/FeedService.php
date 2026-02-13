@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Jobs\FetchEntryThumbnail;
-use App\Models\Feed;
 use App\Models\Entry;
+use App\Models\Feed;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use SimpleXMLElement;
@@ -20,13 +20,13 @@ class FeedService
             }
 
             $response = Http::timeout(10)->get($url);
-            
-            if (!$response->successful()) {
+
+            if (! $response->successful()) {
                 return null;
             }
 
             $contentType = $response->header('content-type');
-            
+
             // If it's already a feed, parse it directly
             if ($this->isFeedContentType($contentType)) {
                 return $this->parseFeedContent($response->body(), $url, $entryLimit);
@@ -36,6 +36,7 @@ class FeedService
             return $this->findFeedInHtml($response->body(), $url, $entryLimit);
         } catch (\Exception $e) {
             Log::error('Feed discovery failed', ['url' => $url, 'error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -49,19 +50,20 @@ class FeedService
     {
         try {
             Log::info('Processing YouTube URL', ['url' => $url]);
-            
+
             // If it's already a YouTube RSS feed URL, parse it directly
             if (str_contains($url, 'feeds/videos.xml')) {
                 Log::info('Direct YouTube RSS feed URL provided', ['url' => $url]);
+
                 return $this->parseFeed($url, $entryLimit);
             }
-            
+
             // Extract channel ID from YouTube URL
             $channelId = $this->extractChannelId($url);
-            
-            if (!$channelId) {
+
+            if (! $channelId) {
                 Log::warning('Could not extract channel ID from YouTube URL', ['url' => $url]);
-                
+
                 // Try legacy RSS approach for @username URLs
                 if (preg_match('/youtube\.com\/@([a-zA-Z0-9_-]+)/', $url, $matches)) {
                     $username = $matches[1];
@@ -70,10 +72,11 @@ class FeedService
                     $result = $this->parseFeed($legacyRssUrl, $entryLimit);
                     if ($result) {
                         Log::info('Legacy RSS approach succeeded', ['entryCount' => count($result['entries'] ?? [])]);
+
                         return $result;
                     }
                 }
-                
+
                 return null;
             }
 
@@ -81,21 +84,22 @@ class FeedService
 
             // Convert to YouTube RSS feed URL
             $rssUrl = "https://www.youtube.com/feeds/videos.xml?channel_id={$channelId}";
-            
+
             Log::info('Fetching YouTube RSS feed', ['rssUrl' => $rssUrl]);
-            
+
             // Parse the RSS feed
             $result = $this->parseFeed($rssUrl, $entryLimit);
-            
+
             if ($result) {
                 Log::info('Successfully parsed YouTube feed', ['entryCount' => count($result['entries'] ?? [])]);
             } else {
                 Log::error('Failed to parse YouTube RSS feed', ['rssUrl' => $rssUrl]);
             }
-            
+
             return $result;
         } catch (\Exception $e) {
             Log::error('YouTube URL handling failed', ['url' => $url, 'error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -103,22 +107,22 @@ class FeedService
     private function extractChannelId(string $url): ?string
     {
         // Handle different YouTube URL formats
-        
+
         // @username format: https://www.youtube.com/@username
         if (preg_match('/youtube\.com\/@([a-zA-Z0-9_-]+)/', $url, $matches)) {
             return $this->getChannelIdFromUsername($matches[1]);
         }
-        
+
         // Channel URL with ID: https://www.youtube.com/channel/CHANNEL_ID
         if (preg_match('/youtube\.com\/channel\/([a-zA-Z0-9_-]+)/', $url, $matches)) {
             return $matches[1];
         }
-        
+
         // Custom handle URL: https://www.youtube.com/c/CHANNEL_NAME
         if (preg_match('/youtube\.com\/c\/([a-zA-Z0-9_-]+)/', $url, $matches)) {
             return $this->getChannelIdFromCustomUrl($matches[1]);
         }
-        
+
         return null;
     }
 
@@ -126,7 +130,7 @@ class FeedService
     {
         try {
             Log::info('Getting channel ID via direct scraping', ['username' => $username]);
-            
+
             // Direct scraping with better consent bypass
             $response = Http::timeout(10)
                 ->withHeaders([
@@ -144,28 +148,29 @@ class FeedService
                     'Cookie' => 'CONSENT=YES+cb; SOCS=CAESHAgBEhJnd3NfMjAyMjA5MjktMF9SQzEaAnJvIAEaBgiAkvKZBg',
                 ])
                 ->get("https://www.youtube.com/@{$username}?hl=en");
-            
-            if (!$response->successful()) {
+
+            if (! $response->successful()) {
                 Log::error('Failed to fetch YouTube page', [
                     'username' => $username,
                     'status' => $response->status(),
-                    'body' => $response->body()
+                    'body' => $response->body(),
                 ]);
+
                 return null;
             }
 
             $html = $response->body();
-            
+
             // Log first 500 chars for debugging
             Log::info('YouTube page response', [
                 'username' => $username,
-                'html_preview' => substr($html, 0, 500)
+                'html_preview' => substr($html, 0, 500),
             ]);
-            
+
             // Check if we hit the consent page
             if (str_contains($html, 'consent.youtube.com')) {
                 Log::warning('Hit YouTube consent page, trying alternative approach', ['username' => $username]);
-                
+
                 // Try without cookies
                 $response = Http::timeout(10)
                     ->withHeaders([
@@ -173,35 +178,39 @@ class FeedService
                         'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                     ])
                     ->get("https://www.youtube.com/@{$username}");
-                
+
                 if ($response->successful()) {
                     $html = $response->body();
                 }
             }
-            
+
             // Look for channel ID in various places in the HTML
             if (preg_match('/"channelId":"([a-zA-Z0-9_-]+)"/', $html, $matches)) {
                 Log::info('Found channel ID via channelId pattern', ['channelId' => $matches[1]]);
+
                 return $matches[1];
             }
-            
+
             if (preg_match('/<meta property="og:url" content="https:\/\/www\.youtube\.com\/channel\/([a-zA-Z0-9_-]+)"/', $html, $matches)) {
                 Log::info('Found channel ID via og:url pattern', ['channelId' => $matches[1]]);
+
                 return $matches[1];
             }
-            
+
             // Try to find it in the initial data
             if (preg_match('/"externalChannelId":"([a-zA-Z0-9_-]+)"/', $html, $matches)) {
                 Log::info('Found channel ID via externalChannelId pattern', ['channelId' => $matches[1]]);
+
                 return $matches[1];
             }
-            
+
             // Try to find canonical URL with channel ID
             if (preg_match('/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/([a-zA-Z0-9_-]+)"/', $html, $matches)) {
                 Log::info('Found channel ID via canonical link', ['channelId' => $matches[1]]);
+
                 return $matches[1];
             }
-            
+
             // Try to find it in ytInitialData
             if (preg_match('/var ytInitialData = ({.+?});/', $html, $dataMatches)) {
                 $jsonData = json_decode($dataMatches[1], true);
@@ -209,41 +218,46 @@ class FeedService
                     $channelId = $this->extractChannelIdFromYtData($jsonData);
                     if ($channelId) {
                         Log::info('Found channel ID via ytInitialData', ['channelId' => $channelId]);
+
                         return $channelId;
                     }
                 }
             }
-            
+
             // Last resort: try YouTube's nocookie domain
             Log::info('Trying nocookie YouTube domain as last resort', ['username' => $username]);
             $nocookieResponse = Http::timeout(10)
                 ->get("https://www.youtube-nocookie.com/@{$username}");
-            
+
             if ($nocookieResponse->successful()) {
                 $nocookieHtml = $nocookieResponse->body();
                 if (preg_match('/"channelId":"([a-zA-Z0-9_-]+)"/', $nocookieHtml, $matches)) {
                     Log::info('Found channel ID via nocookie domain', ['channelId' => $matches[1]]);
+
                     return $matches[1];
                 }
             }
-            
+
             // Final fallback: try to get a video from the channel and extract from there
             Log::info('Trying to extract channel ID from channel videos', ['username' => $username]);
             $videosResponse = Http::timeout(10)
                 ->get("https://www.youtube.com/@{$username}/videos");
-            
+
             if ($videosResponse->successful()) {
                 $videosHtml = $videosResponse->body();
                 if (preg_match('/"channelId":"([a-zA-Z0-9_-]+)"/', $videosHtml, $matches)) {
                     Log::info('Found channel ID via videos page', ['channelId' => $matches[1]]);
+
                     return $matches[1];
                 }
             }
-            
+
             Log::warning('No channel ID found in YouTube page', ['username' => $username]);
+
             return null;
         } catch (\Exception $e) {
             Log::error('Failed to get channel ID from username', ['username' => $username, 'error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -252,21 +266,22 @@ class FeedService
     {
         try {
             $response = Http::timeout(10)->get("https://www.youtube.com/c/{$customUrl}");
-            
-            if (!$response->successful()) {
+
+            if (! $response->successful()) {
                 return null;
             }
 
             $html = $response->body();
-            
+
             // Look for channel ID in the HTML
             if (preg_match('/"channelId":"([a-zA-Z0-9_-]+)"/', $html, $matches)) {
                 return $matches[1];
             }
-            
+
             return null;
         } catch (\Exception $e) {
             Log::error('Failed to get channel ID from custom URL', ['customUrl' => $customUrl, 'error' => $e->getMessage()]);
+
             return null;
         }
     }
@@ -277,16 +292,16 @@ class FeedService
         if (isset($data['header']['c4TabbedHeaderRenderer']['channelId'])) {
             return $data['header']['c4TabbedHeaderRenderer']['channelId'];
         }
-        
+
         // Try alternative paths
         if (isset($data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['channelVideoPlayerRenderer']['navigationEndpoint']['browseEndpoint']['browseId'])) {
             return $data['contents']['twoColumnBrowseResultsRenderer']['tabs'][0]['tabRenderer']['content']['sectionListRenderer']['contents'][0]['itemSectionRenderer']['contents'][0]['channelVideoPlayerRenderer']['navigationEndpoint']['browseEndpoint']['browseId'];
         }
-        
+
         // Recursive search for channelId key
         return $this->recursiveSearch($data, 'channelId');
     }
-    
+
     private function recursiveSearch(array $array, string $key): ?string
     {
         foreach ($array as $k => $v) {
@@ -300,6 +315,7 @@ class FeedService
                 }
             }
         }
+
         return null;
     }
 
@@ -307,21 +323,22 @@ class FeedService
     {
         try {
             $response = Http::timeout(10)->get($feedUrl);
-            
-            if (!$response->successful()) {
+
+            if (! $response->successful()) {
                 return null;
             }
 
             return $this->parseFeedContent($response->body(), $feedUrl, $entryLimit);
         } catch (\Exception $e) {
             Log::error('Feed parsing failed', ['url' => $feedUrl, 'error' => $e->getMessage()]);
+
             return null;
         }
     }
 
     private function isFeedContentType(?string $contentType): bool
     {
-        if (!$contentType) {
+        if (! $contentType) {
             return false;
         }
 
@@ -333,22 +350,22 @@ class FeedService
 
     private function findFeedInHtml(string $html, string $baseUrl, ?int $entryLimit = null): ?array
     {
-        $dom = new \DOMDocument();
-        
+        $dom = new \DOMDocument;
+
         // Suppress warnings for malformed HTML
         libxml_use_internal_errors(true);
         $dom->loadHTML($html);
         libxml_clear_errors();
 
         $xpath = new \DOMXPath($dom);
-        
+
         // Look for feed links
         $links = $xpath->query('//link[@rel="alternate"][@type="application/rss+xml" or @type="application/atom+xml"]');
-        
+
         if ($links->length > 0) {
             $href = $links->item(0)->getAttribute('href');
             $feedUrl = $this->resolveUrl($href, $baseUrl);
-            
+
             return $this->parseFeed($feedUrl, $entryLimit);
         }
 
@@ -364,19 +381,19 @@ class FeedService
         $baseParts = parse_url($baseUrl);
         $scheme = $baseParts['scheme'] ?? 'https';
         $host = $baseParts['host'] ?? '';
-        
+
         if (str_starts_with($href, '/')) {
             return "{$scheme}://{$host}{$href}";
         }
 
-        return "{$scheme}://{$host}/" . ltrim($href, '/');
+        return "{$scheme}://{$host}/".ltrim($href, '/');
     }
 
     private function parseFeedContent(string $content, string $url, ?int $entryLimit = null): ?array
     {
         $xml = simplexml_load_string($content, SimpleXMLElement::class, LIBXML_NOCDATA);
-        
-        if (!$xml) {
+
+        if (! $xml) {
             return null;
         }
 
@@ -386,7 +403,7 @@ class FeedService
             'url' => $url,
             'feed_url' => $url,
             'type' => 'rss',
-            'entries' => []
+            'entries' => [],
         ];
 
         // Detect feed type
@@ -402,7 +419,7 @@ class FeedService
     private function parseRssFeed(SimpleXMLElement $xml, array $feed, ?int $entryLimit = null): array
     {
         $channel = $xml->channel;
-        
+
         $feed['title'] = $this->cleanUtf8((string) ($channel->title ?? ''));
         $feed['description'] = $this->cleanUtf8((string) ($channel->description ?? ''));
         $feed['url'] = (string) ($channel->link ?? $feed['url']);
@@ -410,8 +427,10 @@ class FeedService
         $count = 0;
         $limit = $entryLimit ?? 15;
         foreach ($channel->item as $item) {
-            if ($count >= $limit) break;
-            
+            if ($count >= $limit) {
+                break;
+            }
+
             $feed['entries'][] = [
                 'title' => $this->cleanUtf8((string) ($item->title ?? '')),
                 'content' => $this->cleanUtf8($this->getContent($item)),
@@ -432,10 +451,10 @@ class FeedService
     {
         $feed['title'] = $this->cleanUtf8((string) ($xml->title ?? ''));
         $feed['description'] = $this->cleanUtf8((string) ($xml->subtitle ?? ''));
-        
+
         // Find the main link
         foreach ($xml->link as $link) {
-            if ((string) $link['rel'] === 'alternate' || !isset($link['rel'])) {
+            if ((string) $link['rel'] === 'alternate' || ! isset($link['rel'])) {
                 $feed['url'] = (string) $link['href'];
                 break;
             }
@@ -444,19 +463,21 @@ class FeedService
         $count = 0;
         $limit = $entryLimit ?? 15;
         foreach ($xml->entry as $entry) {
-            if ($count >= $limit) break;
-            
+            if ($count >= $limit) {
+                break;
+            }
+
             $feed['entries'][] = $this->parseAtomEntry($entry);
             $count++;
         }
 
         return $feed;
     }
-    
+
     private function parseAtomEntry(SimpleXMLElement $entry): array
     {
         $content = $this->getAtomContent($entry);
-        
+
         return [
             'title' => $this->cleanUtf8((string) ($entry->title ?? 'Untitled')),
             'url' => $this->getAtomLink($entry),
@@ -476,6 +497,7 @@ class FeedService
     private function getExcerpt(SimpleXMLElement $item): string
     {
         $content = $this->getContent($item);
+
         return strip_tags(substr($content, 0, 300));
     }
 
@@ -487,12 +509,12 @@ class FeedService
     private function getPublishedDate(SimpleXMLElement $item): string
     {
         $date = $item->pubDate ?? null;
-        
+
         // Handle Dublin Core namespace
-        if (!$date && isset($item->children('dc', true)->date)) {
+        if (! $date && isset($item->children('dc', true)->date)) {
             $date = $item->children('dc', true)->date;
         }
-        
+
         return $date ? (string) $date : now()->toISOString();
     }
 
@@ -501,22 +523,25 @@ class FeedService
         foreach ($entry->content as $content) {
             return (string) $content;
         }
+
         return (string) ($entry->summary ?? '');
     }
 
     private function getAtomExcerpt(SimpleXMLElement $entry): string
     {
         $content = $this->getAtomContent($entry);
+
         return strip_tags(substr($content, 0, 300));
     }
 
     private function getAtomLink(SimpleXMLElement $entry): string
     {
         foreach ($entry->link as $link) {
-            if ((string) $link['rel'] === 'alternate' || !isset($link['rel'])) {
+            if ((string) $link['rel'] === 'alternate' || ! isset($link['rel'])) {
                 return (string) $link['href'];
             }
         }
+
         return '';
     }
 
@@ -525,12 +550,14 @@ class FeedService
         if (isset($entry->author->name)) {
             return (string) $entry->author->name;
         }
+
         return '';
     }
 
     private function getAtomPublishedDate(SimpleXMLElement $entry): string
     {
         $date = $entry->published ?? $entry->updated ?? null;
+
         return $date ? (string) $date : now()->toISOString();
     }
 
@@ -539,7 +566,7 @@ class FeedService
         // Clean up any malformed UTF-8
         $title = $this->cleanUtf8($feedData['title'] ?? 'Untitled Feed');
         $description = $this->cleanUtf8($feedData['description'] ?? '');
-        
+
         $feed = Feed::firstOrCreate(
             ['feed_url' => $feedData['feed_url']],
             [
@@ -551,7 +578,7 @@ class FeedService
             ]
         );
 
-        if (!$feed->wasRecentlyCreated) {
+        if (! $feed->wasRecentlyCreated) {
             $feed->update(['last_fetched_at' => now()]);
         }
 
@@ -566,7 +593,7 @@ class FeedService
             $content = $this->cleanUtf8($entryData['content'] ?? '');
             $excerpt = $this->cleanUtf8($entryData['excerpt'] ?? $this->generateExcerptFromContent($content));
             $author = $this->cleanUtf8($entryData['author'] ?? null);
-            
+
             $entry = Entry::updateOrCreate(
                 [
                     'feed_id' => $feed->id,
@@ -582,27 +609,27 @@ class FeedService
                 ]
             );
 
-            if (!$entry->thumbnail_url && $entry->url) {
+            if (! $entry->thumbnail_url && $entry->url) {
                 FetchEntryThumbnail::dispatch($entry);
             }
         }
     }
-    
+
     private function cleanUtf8($string)
     {
         if (is_null($string)) {
             return null;
         }
-        
+
         // Decode HTML entities first
         $string = html_entity_decode($string, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        
+
         // Remove invalid UTF-8 sequences
         $string = mb_convert_encoding($string, 'UTF-8', 'UTF-8');
-        
+
         // Remove any remaining non-UTF-8 characters
         $string = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $string);
-        
+
         return $string;
     }
 
@@ -611,11 +638,12 @@ class FeedService
         // Check for media:thumbnail
         if (isset($item->children('media', true)->thumbnail)) {
             $thumbnail = $item->children('media', true)->thumbnail;
+
             return (string) ($thumbnail['url'] ?? null);
         }
 
         // Check for enclosure with image type
-        if (isset($item->enclosure) && 
+        if (isset($item->enclosure) &&
             str_contains((string) $item->enclosure['type'], 'image')) {
             return (string) $item->enclosure['url'];
         }
@@ -626,15 +654,17 @@ class FeedService
             if (preg_match('/<img[^>]+src="([^"]+youtube[^"]+)"/', $description, $matches)) {
                 return $matches[1];
             }
-            
+
             // Extract YouTube video ID for thumbnail - handle both formats
             if (preg_match('/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/', (string) $item->link, $matches)) {
                 $videoId = $matches[1];
+
                 return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
             }
-            
+
             if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', (string) $item->link, $matches)) {
                 $videoId = $matches[1];
+
                 return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
             }
         }
@@ -682,21 +712,23 @@ class FeedService
         }
 
         // Check for enclosure with image type
-        if (isset($entry->enclosure) && 
+        if (isset($entry->enclosure) &&
             str_contains((string) $entry->enclosure['type'], 'image')) {
             return (string) $entry->enclosure['url'];
         }
 
         // Extract YouTube video ID from link as fallback
         $link = $this->getAtomLink($entry);
-        
+
         if (preg_match('/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/', $link, $matches)) {
             $videoId = $matches[1];
+
             return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
         }
-        
+
         if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $link, $matches)) {
             $videoId = $matches[1];
+
             return "https://img.youtube.com/vi/{$videoId}/maxresdefault.jpg";
         }
 
@@ -711,7 +743,7 @@ class FeedService
 
         return null;
     }
-    
+
     private function generateExcerptFromContent(string $content): string
     {
         // Strip HTML tags and limit to 300 characters
@@ -725,6 +757,7 @@ class FeedService
             }
             $excerpt .= '...';
         }
+
         return $excerpt;
     }
 }

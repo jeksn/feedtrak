@@ -48,7 +48,6 @@ type FormData = z.infer<typeof formSchema>;
 interface Category {
   id: number;
   name: string;
-  color: string | null;
 }
 
 interface FeedFormProps {

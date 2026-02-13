@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('author')->nullable();
             $table->timestamp('published_at');
             $table->timestamps();
-            
+
             $table->unique(['feed_id', 'guid']);
             $table->index(['feed_id', 'published_at']);
         });

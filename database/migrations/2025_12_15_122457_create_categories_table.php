@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('color')->nullable();
             $table->integer('sort_order')->default(0);
             $table->timestamps();
-            
+
             $table->unique(['user_id', 'name']);
         });
     }

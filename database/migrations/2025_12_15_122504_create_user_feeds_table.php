@@ -18,7 +18,7 @@ return new class extends Migration
             $table->foreignId('category_id')->nullable()->constrained()->onDelete('set null');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
-            
+
             $table->unique(['user_id', 'feed_id']);
         });
     }

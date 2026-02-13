@@ -10,7 +10,6 @@ import { Head, router } from '@inertiajs/react';
 interface Category {
   id: number | null;
   name: string;
-  color: string | null;
   user_feeds_count: number;
 }
 

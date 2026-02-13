@@ -22,7 +22,6 @@ interface Feed {
   category: {
     id: number;
     name: string;
-    color: string | null;
   } | null;
   unread_count: number;
 }
@@ -112,9 +111,6 @@ export default function FeedDetail({ feed, entries }: FeedDetailProps) {
                   {feed.category && (
                     <Badge
                       variant="secondary"
-                      style={{
-                        backgroundColor: feed.category.color || undefined,
-                      }}
                     >
                       {feed.category.name}
                     </Badge>

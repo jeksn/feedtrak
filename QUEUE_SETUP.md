@@ -1,49 +1,53 @@
-# Feed Refresh Optimization Guide
+# Production Setup Guide
 
-## The Problem
-The feed refresh was taking too long and generating errors because:
-1. No queue worker was running to process jobs
-2. Jobs were timing out and failing
-3. No rate limiting or smart refresh logic
+## How It Works
 
-## The Solution
+FeedTrak uses two background systems to keep feeds updated automatically:
 
-### 1. Start the Queue Worker
+1. **Laravel Scheduler** — runs `feeds:refresh` every 30 minutes, dispatching a job per feed
+2. **Queue Worker** — processes those jobs (fetching RSS, parsing entries, fetching thumbnails)
+
+## Development
+
 ```bash
-# Option 1: Run in the foreground (for development)
-php artisan queue:work --queue=feeds,default --timeout=60 --sleep=3 --tries=3
-
-# Option 2: Use the custom command
-php artisan queue:start
-
-# Option 3: Run in the background (for production)
-nohup php artisan queue:work --queue=feeds,default --timeout=60 --sleep=3 --tries=3 --daemon > /dev/null 2>&1 &
+# Start everything (server + queue + scheduler) in one command:
+composer run dev
 ```
 
-### 2. Optimizations Implemented
+Or run each piece separately:
 
-#### Backend Changes:
-1. **Smart Refresh**: Only refresh feeds that haven't been updated in the last 5 minutes
-2. **Job Timeouts**: Each job times out after 30 seconds
-3. **Retry Logic**: Failed jobs retry with exponential backoff (10s, 30s, 60s)
-4. **Error Handling**: Better error handling for connection and HTTP errors
-5. **Entry Limit**: Limit to 100 entries per refresh to improve performance
-6. **Queue Separation**: Feed jobs use a dedicated 'feeds' queue
+```bash
+# Terminal 1: Queue worker
+php artisan queue:work --timeout=60 --sleep=3 --tries=3
 
-#### Frontend Improvements:
-1. **Better Feedback**: Shows how many feeds are being refreshed vs skipped
-2. **Loading States**: Individual feed refresh buttons show loading state
+# Terminal 2: Scheduler (runs every minute, checks what's due)
+php artisan schedule:work
+```
 
-### 3. Production Setup
+## Production
 
-For production, you should run the queue worker as a service:
+You need two things running at all times:
 
-#### Using Supervisor (recommended):
+### 1. Cron entry (triggers the scheduler)
+
+Add this single cron entry — Laravel handles the rest:
+
+```cron
+* * * * * cd /path/to/feedtrak && php artisan schedule:run >> /dev/null 2>&1
+```
+
+This runs every minute. Laravel checks internally what's actually due:
+- `feeds:refresh` — every 30 minutes
+- `entries:fetch-thumbnails --limit=50` — every hour
+
+### 2. Queue worker (processes jobs)
+
+#### Option A: Supervisor (recommended)
 ```ini
 # /etc/supervisor/conf.d/feedtrak-worker.conf
 [program:feedtrak-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /path/to/feedtrak/artisan queue:work --queue=feeds,default --sleep=3 --tries=3 --max-time=3600
+command=php /path/to/feedtrak/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true
@@ -55,67 +59,67 @@ stdout_logfile=/path/to/feedtrak/storage/logs/worker.log
 stopwaitsecs=3600
 ```
 
-#### Using Systemd:
+Then:
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start feedtrak-worker:*
+```
+
+#### Option B: Systemd
 ```ini
 # /etc/systemd/system/feedtrak-queue.service
 [Unit]
 Description=FeedTrak Queue Worker
+After=network.target
 
 [Service]
 User=www-data
 Group=www-data
 Restart=always
-ExecStart=/usr/bin/php /path/to/feedtrak/artisan queue:work --queue=feeds,default --sleep=3 --tries=3
+ExecStart=/usr/bin/php /path/to/feedtrak/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 WorkingDirectory=/path/to/feedtrak
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### 4. Monitoring
-
-Check queue status:
+Then:
 ```bash
-# See failed jobs
-php artisan queue:failed
-
-# Clear failed jobs
-php artisan queue:flush
-
-# Monitor queue in real-time
-php artisan queue:monitor feeds,default
+sudo systemctl enable feedtrak-queue
+sudo systemctl start feedtrak-queue
 ```
 
-### 5. Performance Tips
+## Scheduled Tasks
 
-1. **Database Optimization**: Ensure jobs table has proper indexes
-2. **Memory Limit**: Queue worker restarts if memory exceeds 256MB
-3. **Time Limit**: Worker restarts every hour to prevent memory leaks
-4. **Concurrent Workers**: For high traffic, run multiple workers:
-   ```bash
-   php artisan queue:work --queue=feeds,default --timeout=60 --sleep=3 --tries=3 &
-   php artisan queue:work --queue=feeds,default --timeout=60 --sleep=3 --tries=3 &
-   php artisan queue:work --queue=feeds,default --timeout=60 --sleep=3 --tries=3 &
-   ```
+| Command | Frequency | Purpose |
+|---------|-----------|---------|
+| `feeds:refresh` | Every 30 min | Dispatches a FetchFeedJob for every active feed |
+| `entries:fetch-thumbnails --limit=50` | Hourly | Fetches og:image for entries missing thumbnails |
 
-## Quick Fix
+## Artisan Commands
 
-To immediately fix the refresh issue:
+```bash
+# Manually refresh all feeds
+php artisan feeds:refresh
 
-1. Clear failed jobs:
-   ```bash
-   php artisan queue:flush
-   ```
+# Refresh a specific feed
+php artisan feeds:refresh --feed=42
 
-2. Start the queue worker:
-   ```bash
-   php artisan queue:work --queue=feeds,default --timeout=60 --sleep=3 --tries=3
-   ```
+# Backfill thumbnails
+php artisan entries:fetch-thumbnails --limit=100
 
-3. In another terminal, test the refresh:
-   ```bash
-   php artisan tinker
-   >>> \App\Jobs\FetchFeedJob::dispatch('https://example.com/feed.xml')->onQueue('feeds');
-   ```
+# Check queue status
+php artisan queue:failed
+php artisan queue:flush
+```
 
-The refresh should now work much faster and more reliably!
+## After Deploying
+
+Always restart the queue worker after deploying new code:
+
+```bash
+php artisan queue:restart
+```
+
+This gracefully finishes the current job, then restarts with the new code.

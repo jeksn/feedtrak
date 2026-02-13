@@ -44,7 +44,6 @@ interface Feed {
   category: {
     id: number;
     name: string;
-    color: string | null;
   } | null;
   entries: Array<{
     id: number;
@@ -57,7 +56,6 @@ interface Feed {
 interface Category {
   id: number;
   name: string;
-  color: string | null;
 }
 
 interface FeedListProps {

@@ -26,7 +26,7 @@ class StartQueueWorker extends Command
     public function handle(): int
     {
         $this->info('Starting queue worker...');
-        
+
         $this->call('queue:work', [
             '--queue' => 'feeds,default',
             '--timeout' => 60,
@@ -35,7 +35,7 @@ class StartQueueWorker extends Command
             '--max-time' => 3600, // Run for 1 hour then restart
             '--memory' => 256, // Restart if memory exceeds 256MB
         ]);
-        
+
         return Command::SUCCESS;
     }
 }

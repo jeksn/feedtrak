@@ -1,16 +1,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { router } from "@inertiajs/react";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +23,6 @@ import {
   Eye,
   EyeOff,
   CheckCheck,
-  Loader2,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { EntryListSkeleton } from "@/components/loading-skeletons";
@@ -64,8 +60,6 @@ interface EntryListProps {
 
 export function EntryList({
   entries,
-  feedId,
-  categoryId,
   showSaved = false,
   showUnreadOnly = false,
   isLoading = false,
@@ -81,12 +75,12 @@ export function EntryList({
 
   const handleTitleClick = (entry: Entry) => {
     if (!entry.is_read) {
-      handleToggleRead(entry.id, false, entry.read_id);
+      handleToggleRead(entry.id, false);
     }
     window.open(entry.url, '_blank', 'noopener,noreferrer');
   };
 
-  const handleToggleRead = useCallback(async (entryId: number, isRead: boolean, readId?: number) => {
+  const handleToggleRead = useCallback(async (entryId: number, isRead: boolean) => {
     setIsUpdating(entryId);
     // Optimistic update
     onReadToggle?.(entryId, !isRead);
@@ -112,7 +106,7 @@ export function EntryList({
     }
   }, [onReadToggle]);
 
-  const handleToggleSaved = useCallback(async (entryId: number, isSaved: boolean, savedId?: number) => {
+  const handleToggleSaved = useCallback(async (entryId: number, isSaved: boolean) => {
     setIsUpdating(entryId);
     onSaveToggle?.(entryId, !isSaved);
 
@@ -213,7 +207,7 @@ export function EntryList({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleToggleRead(entry.id, false, entry.read_id)}
+                      onClick={() => handleToggleRead(entry.id, false)}
                       disabled={isUpdating === entry.id}
                       className="h-8 w-8 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
                       title="Mark as read"
@@ -224,7 +218,7 @@ export function EntryList({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleToggleSaved(entry.id, entry.is_saved, entry.saved_id)}
+                    onClick={() => handleToggleSaved(entry.id, entry.is_saved)}
                     disabled={isUpdating === entry.id}
                     className="h-8 w-8 p-0 cursor-pointer"
                   >
@@ -253,7 +247,7 @@ export function EntryList({
                         </a>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => handleToggleRead(entry.id, entry.is_read, entry.read_id)}
+                        onClick={() => handleToggleRead(entry.id, entry.is_read)}
                         disabled={isUpdating === entry.id}
                         className="cursor-pointer"
                       >
@@ -270,7 +264,7 @@ export function EntryList({
                         )}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => handleToggleSaved(entry.id, entry.is_saved, entry.saved_id)}
+                        onClick={() => handleToggleSaved(entry.id, entry.is_saved)}
                         disabled={isUpdating === entry.id}
                         className="cursor-pointer"
                       >

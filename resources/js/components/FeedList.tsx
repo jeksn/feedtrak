@@ -20,12 +20,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-import { MoreHorizontal, RefreshCw, Trash2, Loader2, CheckCheck, ExternalLink, Rss } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Trash2, Loader2, CheckCheck, ExternalLink } from "lucide-react";
 import { FeedForm } from "./FeedForm";
-import { FeedCardSkeleton } from "./loading-skeletons";
 import { formatDistanceToNow } from "date-fns";
 
 interface Feed {

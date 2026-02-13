@@ -2,7 +2,7 @@
 
 import { CategoryForm } from "@/components/CategoryForm";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Plus, Tag } from "lucide-react";
+import { Edit, Trash2, Tag } from "lucide-react";
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';

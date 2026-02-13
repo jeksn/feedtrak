@@ -1,5 +1,5 @@
-import { Head, usePage } from '@inertiajs/react';
-import { type BreadcrumbItem, type SharedData } from '@/types';
+import { Head } from '@inertiajs/react';
+import { type BreadcrumbItem } from '@/types';
 import HeadingSmall from '@/components/heading-small';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
@@ -13,8 +13,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function OpmlSettings() {
-    const { auth } = usePage<SharedData>().props;
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Import Feeds" />

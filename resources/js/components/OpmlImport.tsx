@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { Button } from "@/components/ui/button";
-import { Upload, Loader2, FileText, Download } from "lucide-react";
+import { Upload, Loader2, FileText } from "lucide-react";
 
 interface OpmlImportProps {
   children?: React.ReactNode;
@@ -40,7 +40,7 @@ export function OpmlImport({ children }: OpmlImportProps) {
         console.log('Page props:', page.props);
         toast({
           title: "Import Successful",
-          description: (page.props as any).flash?.success || "Your feeds have been imported successfully!",
+          description: (page.props as Record<string, { success?: string }>).flash?.success || "Your feeds have been imported successfully!",
         });
         setOpen(false);
         

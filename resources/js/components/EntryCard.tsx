@@ -1,11 +1,9 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Bookmark, Check, Clock, Image as ImageIcon } from "lucide-react";
-import { router, Link } from '@inertiajs/react';
-import { formatDistanceToNow, format } from "date-fns";
+import { ExternalLink, Bookmark, Check, Image as ImageIcon } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 interface Entry {
   id: number;
@@ -52,7 +50,7 @@ export function EntryCard({ entry, onReadToggle, onSaveToggle }: EntryCardProps)
     return match ? decodeURIComponent(match[1]) : '';
   };
 
-  const handleTitleClick = (e: React.MouseEvent) => {
+  const handleTitleClick = () => {
     if (!entry.is_read) {
       handleMarkAsRead();
     }

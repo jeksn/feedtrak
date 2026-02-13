@@ -8,7 +8,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { register } from '@/routes';
 import { request } from '@/routes/password';
-import { Form, Head, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 
 interface LoginProps {
     status?: string;

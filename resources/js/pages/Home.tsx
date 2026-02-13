@@ -4,9 +4,8 @@ import { useState } from "react";
 import { EntryList } from "@/components/EntryList";
 import { EntryCard } from "@/components/EntryCard";
 import { FeedForm } from "@/components/FeedForm";
-import { type BreadcrumbItem, type SharedData } from "@/types";
-import { Head, usePage } from "@inertiajs/react";
-import { toast } from "@/hooks/use-toast";
+import { type BreadcrumbItem } from "@/types";
+import { Head } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -166,8 +165,8 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     router.get('/', { page: nextPage }, {
       preserveState: true,
       preserveScroll: true,
-      onSuccess: (page: any) => {
-        const newEntries = page.props.entries.all as Entry[];
+      onSuccess: (page) => {
+        const newEntries = (page.props as unknown as DashboardProps).entries.all;
         setAllEntries(prev => [...prev, ...newEntries]);
         setCurrentPage(nextPage);
         setIsLoadingMore(false);

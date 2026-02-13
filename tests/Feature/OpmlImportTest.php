@@ -1,15 +1,14 @@
 <?php
 
-use App\Models\User;
 use App\Models\Category;
 use App\Models\Feed;
+use App\Models\User;
 use App\Services\OpmlService;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 
 test('users can import feeds from OPML file', function () {
     $user = User::factory()->create();
-    
+
     // Create a sample OPML content with mockable feeds
     $opmlContent = '<?xml version="1.0" encoding="UTF-8"?>
     <opml version="2.0">
@@ -43,13 +42,13 @@ test('users can import feeds from OPML file', function () {
 
     // Assert the request was successful
     $response->assertRedirect();
-    
+
     // Check that categories were created
     $this->assertDatabaseHas('categories', [
         'user_id' => $user->id,
         'name' => 'Tech Blogs',
     ]);
-    
+
     $this->assertDatabaseHas('categories', [
         'user_id' => $user->id,
         'name' => 'News',
@@ -60,14 +59,14 @@ test('users can import feeds from OPML file', function () {
     // But we can verify the categories were created correctly
     $techCrunchCategory = Category::where('user_id', $user->id)->where('name', 'Tech Blogs')->first();
     $newsCategory = Category::where('user_id', $user->id)->where('name', 'News')->first();
-    
+
     expect($techCrunchCategory)->not->toBeNull();
     expect($newsCategory)->not->toBeNull();
 });
 
 test('users cannot import invalid OPML files', function () {
     $user = User::factory()->create();
-    
+
     // Create an invalid XML file
     $invalidContent = 'This is not valid XML';
     $file = UploadedFile::fake()->createWithContent('invalid.opml', $invalidContent);
@@ -82,12 +81,12 @@ test('users cannot import invalid OPML files', function () {
 
 test('OPML import skips already subscribed feeds', function () {
     $user = User::factory()->create();
-    
+
     // Create an existing feed and subscription
     $existingFeed = Feed::factory()->create([
         'feed_url' => 'https://localhost/feed1.xml',
     ]);
-    
+
     \App\Models\UserFeed::create([
         'user_id' => $user->id,
         'feed_id' => $existingFeed->id,
@@ -115,14 +114,14 @@ test('OPML import skips already subscribed feeds', function () {
         ]);
 
     $response->assertRedirect();
-    
+
     // Should only have one subscription (the existing one)
     $this->assertDatabaseCount('user_feeds', 1);
 });
 
 test('OPML service parses categories and feeds correctly', function () {
-    $service = new OpmlService();
-    
+    $service = new OpmlService;
+
     $opmlContent = '<?xml version="1.0" encoding="UTF-8"?>
     <opml version="2.0">
         <head>
@@ -144,11 +143,11 @@ test('OPML service parses categories and feeds correctly', function () {
 
     expect($result)->toHaveKey('categories');
     expect($result)->toHaveKey('feeds');
-    
+
     expect($result['categories'])->toHaveKey('Category 1');
     expect($result['categories']['Category 1']['name'])->toBe('Category 1');
     expect($result['categories']['Category 1']['feeds'])->toHaveCount(2);
-    
+
     expect($result['feeds'])->toHaveCount(3);
     expect($result['feeds'][0]['category'])->toBe('Category 1');
     expect($result['feeds'][2]['category'])->toBeNull();

@@ -51,8 +51,10 @@ interface FeedDetailProps {
   entries: Entry[];
 }
 
-export default function FeedDetail({ feed, entries }: FeedDetailProps) {
+export default function FeedDetail({ feed, entries: initialEntries }: FeedDetailProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [entries, setEntries] = useState<Entry[]>(initialEntries);
+  const [unreadCount, setUnreadCount] = useState(feed.unread_count);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
@@ -68,11 +70,41 @@ export default function FeedDetail({ feed, entries }: FeedDetailProps) {
   };
 
   const handleMarkAllAsRead = () => {
+    console.log('Mark all as read clicked for feed:', feed.id);
+    
+    // Optimistic update
+    setEntries(prev => prev.map(e => ({ ...e, is_read: true })));
+    setUnreadCount(0);
+
     router.post(`/feeds/${feed.id}/mark-all-read`, {}, {
       onSuccess: () => {
+        console.log('Mark all as read success');
+        router.reload();
+      },
+      onError: (errors) => {
+        console.error('Mark all as read error:', errors);
+        // Revert on error
         router.reload();
       }
     });
+  };
+
+  const handleReadToggle = (entryId: number, isRead: boolean) => {
+    setEntries(prev => prev.map(e => 
+      e.id === entryId ? { ...e, is_read: isRead } : e
+    ));
+    
+    if (isRead) {
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } else {
+      setUnreadCount(prev => prev + 1);
+    }
+  };
+
+  const handleSaveToggle = (entryId: number, isSaved: boolean) => {
+    setEntries(prev => prev.map(e => 
+      e.id === entryId ? { ...e, is_saved: isSaved } : e
+    ));
   };
 
   const breadcrumbs: BreadcrumbItem[] = [
@@ -115,9 +147,9 @@ export default function FeedDetail({ feed, entries }: FeedDetailProps) {
                       {feed.category.name}
                     </Badge>
                   )}
-                  {feed.unread_count > 0 && (
+                  {unreadCount > 0 && (
                     <Badge variant="outline">
-                      {feed.unread_count} unread
+                      {unreadCount} unread
                     </Badge>
                   )}
                 </div>
@@ -133,7 +165,7 @@ export default function FeedDetail({ feed, entries }: FeedDetailProps) {
                   variant="outline"
                   size="sm"
                   onClick={handleMarkAllAsRead}
-                  disabled={feed.unread_count === 0}
+                  disabled={unreadCount === 0}
                 >
                   <CheckCheck className="h-4 w-4 mr-2" />
                   Mark All as Read
@@ -161,7 +193,12 @@ export default function FeedDetail({ feed, entries }: FeedDetailProps) {
           <h2 className="text-2xl font-bold tracking-tight mb-4">
             Recent Entries {entries.length > 0 && `(${entries.length})`}
           </h2>
-          <EntryList entries={entries} feedId={feed.id} />
+          <EntryList 
+            entries={entries} 
+            feedId={feed.id} 
+            onReadToggle={handleReadToggle}
+            onSaveToggle={handleSaveToggle}
+          />
         </div>
       </div>
     </AppLayout>

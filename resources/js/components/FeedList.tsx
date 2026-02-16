@@ -167,7 +167,7 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
               <div key={feed.id} className="grid grid-cols-[1fr_120px_80px_150px_70px] gap-4 px-6 py-4 hover:bg-muted/50 transition-colors items-center">
                 <div className="min-w-0">
                   <div 
-                    className="font-medium hover:text-blue-600 cursor-pointer transition-colors duration-200 inline-flex items-center gap-2 group"
+                    className="font-medium cursor-pointer transition-colors duration-200 inline-flex items-center gap-2 group"
                     onClick={() => router.visit(`/feeds/${feed.id}`)}
                   >
                     <span className="truncate">{feed.title}</span>
@@ -186,7 +186,7 @@ export function FeedList({ feeds, categories, isLoading = false }: FeedListProps
                 </div>
                 <div>
                   {feed.unread_count > 0 ? (
-                    <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white">
+                    <Badge variant="default" className="bg-white text-black">
                       {feed.unread_count}
                     </Badge>
                   ) : (

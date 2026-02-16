@@ -93,13 +93,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Feed routes
     Route::get('/feeds', function () {
-        // Get unread counts in a single query
-        $unreadCounts = Auth::user()->entryReads()
-            ->where('is_read', false)
-            ->join('entries', 'entries.id', '=', 'user_entry_reads.entry_id')
+        // Get unread counts (entries with no read record OR is_read = false)
+        $unreadCounts = DB::table('entries')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->join('user_feeds', 'user_feeds.feed_id', '=', 'feeds.id')
-            ->where('user_feeds.user_id', Auth::id())
+            ->join('user_feeds', function ($join) {
+                $join->on('user_feeds.feed_id', '=', 'feeds.id')
+                    ->where('user_feeds.user_id', '=', Auth::id());
+            })
+            ->leftJoin('user_entry_reads', function ($join) {
+                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
+                    ->where('user_entry_reads.user_id', '=', Auth::id());
+            })
+            ->where(function ($query) {
+                $query->whereNull('user_entry_reads.id')
+                    ->orWhere('user_entry_reads.is_read', '=', false);
+            })
             ->groupBy('feeds.id')
             ->selectRaw('feeds.id, COUNT(*) as unread_count')
             ->pluck('unread_count', 'feeds.id');
@@ -149,9 +157,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 return $category;
             });
 
+        // Get accurate unread count (entries with no read record OR is_read = false)
+        $unreadCount = DB::table('entries')
+            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
+            ->join('user_feeds', function ($join) {
+                $join->on('user_feeds.feed_id', '=', 'feeds.id')
+                    ->where('user_feeds.user_id', '=', Auth::id());
+            })
+            ->leftJoin('user_entry_reads', function ($join) {
+                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
+                    ->where('user_entry_reads.user_id', '=', Auth::id());
+            })
+            ->where(function ($query) {
+                $query->whereNull('user_entry_reads.id')
+                    ->orWhere('user_entry_reads.is_read', '=', false);
+            })
+            ->count();
+
+        $stats = [
+            'totalFeeds' => Auth::user()->feeds()->count(),
+            'unreadCount' => $unreadCount,
+            'savedCount' => Auth::user()->savedItems()->count(),
+        ];
+
         return Inertia::render('Feeds', [
             'feeds' => $feeds,
             'categories' => $categories,
+            'stats' => $stats,
         ]);
     })->name('feeds');
 
@@ -170,11 +202,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         $feed->category = $userFeedWithCategory?->category;
 
-        // Get unread count for this feed
-        $unreadCount = Auth::user()->entryReads()
-            ->where('is_read', false)
-            ->whereHas('entry', function ($query) use ($feed) {
-                $query->where('feed_id', $feed->id);
+        // Get unread count for this feed (entries with no read record OR is_read = false)
+        $unreadCount = DB::table('entries')
+            ->where('entries.feed_id', $feed->id)
+            ->leftJoin('user_entry_reads', function ($join) {
+                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
+                    ->where('user_entry_reads.user_id', '=', Auth::id());
+            })
+            ->where(function ($query) {
+                $query->whereNull('user_entry_reads.id')
+                    ->orWhere('user_entry_reads.is_read', '=', false);
             })
             ->count();
 

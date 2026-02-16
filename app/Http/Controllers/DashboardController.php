@@ -102,8 +102,26 @@ class DashboardController extends Controller
             ];
         });
 
-        // Get unread and saved entries (limited for performance)
-        $unreadEntries = DB::table('entries')
+        // Get unread count (no limit for accurate count)
+        $unreadCount = DB::table('entries')
+            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
+            ->join('user_feeds', function ($join) use ($user) {
+                $join->on('user_feeds.feed_id', '=', 'feeds.id')
+                    ->where('user_feeds.user_id', '=', $user->id);
+            })
+            ->leftJoin('user_entry_reads', function ($join) use ($user) {
+                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
+                    ->where('user_entry_reads.user_id', '=', $user->id);
+            })
+            ->where(function ($query) {
+                $query->whereNull('user_entry_reads.id')
+                    ->orWhere('user_entry_reads.is_read', '=', false);
+            })
+            ->count();
+
+        // Get unread entries with pagination
+        $unreadPage = request()->get('unread_page', 1);
+        $unreadPaginated = DB::table('entries')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->join('user_feeds', function ($join) use ($user) {
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
@@ -119,31 +137,41 @@ class DashboardController extends Controller
             })
             ->select('entries.*', 'feeds.title as feed_title', 'feeds.url as feed_url')
             ->orderBy('entries.published_at', 'desc')
-            ->limit(50)
-            ->get()
-            ->map(function ($entry) {
-                return [
-                    'id' => $entry->id,
-                    'title' => $this->cleanUtf8($entry->title),
-                    'content' => $this->cleanUtf8($entry->content),
-                    'excerpt' => $this->cleanUtf8($entry->excerpt),
-                    'url' => $entry->url,
-                    'thumbnail_url' => $entry->thumbnail_url,
-                    'author' => $this->cleanUtf8($entry->author),
-                    'published_at' => $entry->published_at,
-                    'feed' => [
-                        'id' => $entry->feed_id,
-                        'title' => $this->cleanUtf8($entry->feed_title),
-                        'url' => $entry->feed_url,
-                    ],
-                    'is_read' => false,
-                    'is_saved' => false,
-                    'read_id' => null,
-                    'saved_id' => null,
-                ];
-            });
+            ->paginate($perPage, ['*'], 'unread_page', $unreadPage);
 
-        $savedEntries = DB::table('saved_items')
+        $unreadEntries = $unreadPaginated->getCollection()->map(function ($entry) {
+            return [
+                'id' => $entry->id,
+                'title' => $this->cleanUtf8($entry->title),
+                'content' => $this->cleanUtf8($entry->content),
+                'excerpt' => $this->cleanUtf8($entry->excerpt),
+                'url' => $entry->url,
+                'thumbnail_url' => $entry->thumbnail_url,
+                'author' => $this->cleanUtf8($entry->author),
+                'published_at' => $entry->published_at,
+                'feed' => [
+                    'id' => $entry->feed_id,
+                    'title' => $this->cleanUtf8($entry->feed_title),
+                    'url' => $entry->feed_url,
+                ],
+                'is_read' => false,
+                'is_saved' => false,
+                'read_id' => null,
+                'saved_id' => null,
+            ];
+        });
+
+        $unreadPaginationData = [
+            'current_page' => $unreadPaginated->currentPage(),
+            'last_page' => $unreadPaginated->lastPage(),
+            'per_page' => $unreadPaginated->perPage(),
+            'total' => $unreadPaginated->total(),
+            'has_more' => $unreadPaginated->hasMorePages(),
+        ];
+
+        // Get saved entries with pagination
+        $savedPage = request()->get('saved_page', 1);
+        $savedPaginated = DB::table('saved_items')
             ->join('entries', 'entries.id', '=', 'saved_items.entry_id')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
@@ -168,29 +196,37 @@ class DashboardController extends Controller
                 'saved_items.id as saved_id',
             ])
             ->orderBy('saved_items.created_at', 'desc')
-            ->limit(50)
-            ->get()
-            ->map(function ($savedItem) {
-                return [
-                    'id' => $savedItem->id,
-                    'title' => $this->cleanUtf8($savedItem->title),
-                    'content' => $this->cleanUtf8($savedItem->content),
-                    'excerpt' => $this->cleanUtf8($savedItem->excerpt),
-                    'url' => $savedItem->url,
-                    'thumbnail_url' => $savedItem->thumbnail_url,
-                    'author' => $this->cleanUtf8($savedItem->author),
-                    'published_at' => $savedItem->published_at,
-                    'feed' => [
-                        'id' => $savedItem->feed_id,
-                        'title' => $this->cleanUtf8($savedItem->feed_title),
-                        'url' => $savedItem->feed_url,
-                    ],
-                    'is_read' => $savedItem->is_read ?? false,
-                    'is_saved' => true,
-                    'read_id' => $savedItem->read_id,
-                    'saved_id' => $savedItem->saved_id,
-                ];
-            });
+            ->paginate($perPage, ['*'], 'saved_page', $savedPage);
+
+        $savedEntries = $savedPaginated->getCollection()->map(function ($savedItem) {
+            return [
+                'id' => $savedItem->id,
+                'title' => $this->cleanUtf8($savedItem->title),
+                'content' => $this->cleanUtf8($savedItem->content),
+                'excerpt' => $this->cleanUtf8($savedItem->excerpt),
+                'url' => $savedItem->url,
+                'thumbnail_url' => $savedItem->thumbnail_url,
+                'author' => $this->cleanUtf8($savedItem->author),
+                'published_at' => $savedItem->published_at,
+                'feed' => [
+                    'id' => $savedItem->feed_id,
+                    'title' => $this->cleanUtf8($savedItem->feed_title),
+                    'url' => $savedItem->feed_url,
+                ],
+                'is_read' => $savedItem->is_read ?? false,
+                'is_saved' => true,
+                'read_id' => $savedItem->read_id,
+                'saved_id' => $savedItem->saved_id,
+            ];
+        });
+
+        $savedPaginationData = [
+            'current_page' => $savedPaginated->currentPage(),
+            'last_page' => $savedPaginated->lastPage(),
+            'per_page' => $savedPaginated->perPage(),
+            'total' => $savedPaginated->total(),
+            'has_more' => $savedPaginated->hasMorePages(),
+        ];
 
         // Prepare pagination data
         $paginationData = [
@@ -203,7 +239,7 @@ class DashboardController extends Controller
 
         $stats = [
             'totalFeeds' => $totalFeeds,
-            'unreadCount' => $unreadEntries->count(),
+            'unreadCount' => $unreadCount,
             'savedCount' => $savedCount,
         ];
 
@@ -223,6 +259,8 @@ class DashboardController extends Controller
             'stats' => $stats,
             'entries' => $entries,
             'pagination' => $paginationData,
+            'unreadPagination' => $unreadPaginationData,
+            'savedPagination' => $savedPaginationData,
             'categories' => $categories,
             'entryViewMode' => $entryViewMode,
         ]);

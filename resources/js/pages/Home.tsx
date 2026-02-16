@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { RefreshCw, Loader2, Rss, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid, ChevronDown, CheckCheck } from "lucide-react";
+import { RefreshCw, Loader2, Eye, Bookmark, BookOpen, LayoutList, LayoutGrid, ChevronDown, CheckCheck } from "lucide-react";
 import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
 import { dashboard } from '@/routes';
@@ -54,6 +54,20 @@ interface DashboardProps {
     total: number;
     has_more: boolean;
   };
+  unreadPagination?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+  };
+  savedPagination?: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    has_more: boolean;
+  };
   categories: Array<{
     id: number;
     name: string;
@@ -68,15 +82,19 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Home({ stats, entries, categories, entryViewMode, pagination }: DashboardProps) {
+export default function Home({ stats, entries, categories, entryViewMode, pagination, unreadPagination, savedPagination }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("unread");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [viewMode, setViewMode] = useState(entryViewMode);
   const [currentPage, setCurrentPage] = useState(pagination?.current_page || 1);
+  const [unreadPage, setUnreadPage] = useState(unreadPagination?.current_page || 1);
+  const [savedPage, setSavedPage] = useState(savedPagination?.current_page || 1);
   const [allEntries, setAllEntries] = useState<Entry[]>(entries.all || []);
   const [unreadEntries, setUnreadEntries] = useState<Entry[]>(entries.unread || []);
   const [savedEntries, setSavedEntries] = useState<Entry[]>(entries.saved || []);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [unreadHasMore, setUnreadHasMore] = useState(unreadPagination?.has_more || false);
+  const [savedHasMore, setSavedHasMore] = useState(savedPagination?.has_more || false);
   const [unreadCount, setUnreadCount] = useState(stats.unreadCount);
   const [savedCount, setSavedCount] = useState(stats.savedCount);
 
@@ -162,16 +180,72 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     setIsLoadingMore(true);
     const nextPage = currentPage + 1;
     
-    router.get('/', { page: nextPage }, {
-      preserveState: true,
-      preserveScroll: true,
+    router.reload({
+      data: { page: nextPage },
+      only: ['entries', 'pagination'],
       onSuccess: (page) => {
-        const newEntries = (page.props as unknown as DashboardProps).entries.all;
-        setAllEntries(prev => [...prev, ...newEntries]);
-        setCurrentPage(nextPage);
+        const props = page.props as unknown as DashboardProps;
+        const newEntries = props.entries?.all || [];
+        if (newEntries.length > 0) {
+          setAllEntries(prev => [...prev, ...newEntries]);
+          setCurrentPage(nextPage);
+        }
         setIsLoadingMore(false);
       },
-      onError: () => {
+      onError: (errors) => {
+        console.error('Load more all error:', errors);
+        setIsLoadingMore(false);
+      }
+    });
+  };
+
+  const loadMoreUnread = () => {
+    if (!unreadHasMore || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    const nextPage = unreadPage + 1;
+    
+    router.reload({
+      data: { unread_page: nextPage },
+      only: ['entries', 'unreadPagination'],
+      onSuccess: (page) => {
+        const props = page.props as unknown as DashboardProps;
+        const newEntries = props.entries?.unread || [];
+        if (newEntries.length > 0) {
+          setUnreadEntries(prev => [...prev, ...newEntries]);
+          setUnreadPage(nextPage);
+          setUnreadHasMore(props.unreadPagination?.has_more || false);
+        }
+        setIsLoadingMore(false);
+      },
+      onError: (errors) => {
+        console.error('Load more unread error:', errors);
+        setIsLoadingMore(false);
+      }
+    });
+  };
+
+  const loadMoreSaved = () => {
+    if (!savedHasMore || isLoadingMore) return;
+    
+    setIsLoadingMore(true);
+    const nextPage = savedPage + 1;
+    
+    router.reload({
+      data: { saved_page: nextPage },
+      only: ['entries', 'savedPagination'],
+      onSuccess: (page) => {
+        const props = page.props as unknown as DashboardProps;
+        const newEntries = props.entries?.saved || [];
+        if (newEntries.length > 0) {
+          setSavedEntries(prev => [...prev, ...newEntries]);
+          setSavedPage(nextPage);
+          setSavedHasMore(props.savedPagination?.has_more || false);
+        }
+        setIsLoadingMore(false);
+      },
+      onError: (errors) => {
+        console.error('Load more saved error:', errors);
         setIsLoadingMore(false);
       }
     });
@@ -213,46 +287,6 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="transition-all duration-200 hover:shadow-md hover:-translate-y-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Feeds</CardTitle>
-              <Rss className="h-4 w-4 text-muted-foreground transition-transform group-hover:scale-110" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalFeeds}</div>
-              <p className="text-xs text-muted-foreground">
-                RSS subscriptions
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="transition-all duration-200 hover:shadow-md hover:-translate-y-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unread</CardTitle>
-              <Eye className="h-4 w-4 text-muted-foreground transition-transform group-hover:scale-110" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.unreadCount}</div>
-              <p className="text-xs text-muted-foreground">
-                Items to read
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="transition-all duration-200 hover:shadow-md hover:-translate-y-1">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Saved</CardTitle>
-              <Bookmark className="h-4 w-4 text-muted-foreground transition-transform group-hover:scale-110" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.savedCount}</div>
-              <p className="text-xs text-muted-foreground">
-                Saved for later
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Entries */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="flex items-center justify-between">
@@ -261,7 +295,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
                 <Eye className="h-4 w-4" />
                 Unread
                 {unreadCount > 0 && (
-                  <Badge variant="secondary">{unreadCount}</Badge>
+                  <Badge variant="outline">{unreadCount}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="all" className="flex items-center gap-2">
@@ -272,7 +306,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
                 <Bookmark className="h-4 w-4" />
                 Saved
                 {savedCount > 0 && (
-                  <Badge variant="secondary">{savedCount}</Badge>
+                  <Badge variant="outline">{savedCount}</Badge>
                 )}
               </TabsTrigger>
             </TabsList>
@@ -301,17 +335,63 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
 
           <TabsContent value="unread">
             {viewMode === 'list' ? (
-              <EntryList entries={unreadEntries} showUnreadOnly={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
+              <div className="space-y-4">
+                <EntryList entries={unreadEntries} showUnreadOnly={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
+                {unreadHasMore && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreUnread}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {unreadEntries.map((entry) => (
-                  <EntryCard
-                    key={entry.id}
-                    entry={entry}
-                    onReadToggle={handleReadToggle}
-                    onSaveToggle={handleSaveToggle}
-                  />
-                ))}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {unreadEntries.map((entry) => (
+                    <EntryCard
+                      key={entry.id}
+                      entry={entry}
+                      onReadToggle={handleReadToggle}
+                      onSaveToggle={handleSaveToggle}
+                    />
+                  ))}
+                </div>
+                {unreadHasMore && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreUnread}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
@@ -381,17 +461,63 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
 
           <TabsContent value="saved">
             {viewMode === 'list' ? (
-              <EntryList entries={savedEntries} showSaved={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
+              <div className="space-y-4">
+                <EntryList entries={savedEntries} showSaved={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
+                {savedHasMore && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreSaved}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {savedEntries.map((entry) => (
-                  <EntryCard
-                    key={entry.id}
-                    entry={entry}
-                    onReadToggle={handleReadToggle}
-                    onSaveToggle={handleSaveToggle}
-                  />
-                ))}
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {savedEntries.map((entry) => (
+                    <EntryCard
+                      key={entry.id}
+                      entry={entry}
+                      onReadToggle={handleReadToggle}
+                      onSaveToggle={handleSaveToggle}
+                    />
+                  ))}
+                </div>
+                {savedHasMore && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={loadMoreSaved}
+                      disabled={isLoadingMore}
+                    >
+                      {isLoadingMore ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          Load More
+                          <ChevronDown className="w-4 h-4 ml-2" />
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>

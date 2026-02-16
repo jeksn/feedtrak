@@ -1,10 +1,9 @@
 {
     "agents": [
-        "opencode"
+        "windsurf"
     ],
     "editors": [
-        "opencode",
-        "vscode"
+        "windsurf"
     ],
     "guidelines": [
         "laravel/fortify"

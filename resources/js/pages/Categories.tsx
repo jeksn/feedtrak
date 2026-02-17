@@ -2,15 +2,23 @@
 
 import { CategoryForm } from "@/components/CategoryForm";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Tag } from "lucide-react";
+import { Edit, Trash2, Tag, ChevronRight, ExternalLink } from "lucide-react";
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
+import { useState } from "react";
+
+interface Feed {
+  id: number;
+  title: string;
+  url: string;
+}
 
 interface Category {
   id: number | null;
   name: string;
   user_feeds_count: number;
+  feeds?: Feed[];
 }
 
 interface CategoriesProps {
@@ -25,6 +33,19 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function Categories({ categories }: CategoriesProps) {
+  const [expandedCategories, setExpandedCategories] = useState<Set<number | null>>(new Set());
+
+  const toggleCategory = (categoryId: number | null) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
   const handleDeleteCategory = (categoryId: number | null) => {
     if (categoryId === null) {
       // Cannot delete uncategorized category
@@ -79,11 +100,20 @@ export default function Categories({ categories }: CategoriesProps) {
             
             {/* Table Body */}
             <div className="divide-y">
-              {categories.map((category) => (
-                <div key={category.id || 'uncategorized'} className="grid grid-cols-[1fr_120px_120px] gap-4 px-6 py-4 hover:bg-muted/50 transition-colors items-center">
-                  <div>
-                    <div className="font-medium">{category.name}</div>
-                  </div>
+              {categories.map((category) => {
+                const isExpanded = expandedCategories.has(category.id);
+                return (
+                <div key={category.id || 'uncategorized'}>
+                  <div 
+                    className="grid grid-cols-[1fr_120px_120px] gap-4 px-6 py-4 hover:bg-muted/50 transition-colors items-center cursor-pointer"
+                    onClick={() => toggleCategory(category.id)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="p-1">
+                        <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                      </span>
+                      <span className="font-medium">{category.name}</span>
+                    </div>
                   <div>
                     <span className="text-sm">
                       {category.user_feeds_count} feed{category.user_feeds_count !== 1 ? 's' : ''}
@@ -113,8 +143,27 @@ export default function Categories({ categories }: CategoriesProps) {
                       )}
                     </div>
                   </div>
+                  </div>
+                  {/* Expanded feeds list */}
+                  {isExpanded && category.feeds && category.feeds.length > 0 && (
+                    <div className="bg-muted/30 px-6 py-3 border-t">
+                      <div className="space-y-2 pl-5">
+                        {category.feeds.map((feed) => (
+                          <div
+                            key={feed.id}
+                            onClick={() => router.visit(`/feeds/${feed.id}`)}
+                            className="flex items-center gap-2 py-2 px-3 rounded hover:bg-muted cursor-pointer text-sm text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            <span className="truncate">{feed.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}

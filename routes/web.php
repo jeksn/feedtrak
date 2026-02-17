@@ -24,19 +24,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/categories', function () {
         $categories = Auth::user()->categories()
             ->withCount('userFeeds')
+            ->with(['userFeeds.feed'])
             ->orderBy('sort_order')
-            ->get();
+            ->get()
+            ->map(function ($category) {
+                $category->feeds = $category->userFeeds->map(function ($userFeed) {
+                    return $userFeed->feed;
+                })->filter();
+                unset($category->userFeeds);
+                return $category;
+            });
 
         // Add uncategorized feeds count
         $uncategorizedCount = Auth::user()->userFeeds()
             ->whereNull('category_id')
             ->count();
 
+        // Get uncategorized feeds
+        $uncategorizedFeeds = Auth::user()->userFeeds()
+            ->whereNull('category_id')
+            ->with('feed')
+            ->get()
+            ->map(function ($userFeed) {
+                return $userFeed->feed;
+            })
+            ->filter();
+
         // Create an uncategorized category object
         $uncategorizedCategory = (object) [
             'id' => null,
             'name' => 'Uncategorized',
             'user_feeds_count' => $uncategorizedCount,
+            'feeds' => $uncategorizedFeeds,
         ];
 
         // Add uncategorized to the beginning of categories

@@ -22,10 +22,8 @@ class FetchFeedJob implements ShouldQueue
 
     public ?int $categoryId;
 
-    // Timeout after 30 seconds
     public int $timeout = 30;
 
-    // Retry up to 3 times with exponential backoff
     public int $tries = 3;
 
     public array|int $backoff = [10, 30, 60];
@@ -47,43 +45,50 @@ class FetchFeedJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
-            // Check if this is a new feed
             $existingFeed = \App\Models\Feed::where('feed_url', $this->feedUrl)->first();
             $isNewFeed = ! $existingFeed;
 
-            // For new feeds, limit to 15 entries. For existing feeds, fetch all.
             $entryLimit = $isNewFeed ? 15 : null;
 
-            // Fetch YouTube channel data
-            $feedData = $feedService->fetchYouTubeChannel($this->feedUrl, $entryLimit);
+            $feedData = null;
+            $contentType = $this->detectContentType($this->feedUrl);
+
+            if ($contentType === 'youtube') {
+                $feedData = $feedService->fetchYouTubeChannel($this->feedUrl, $entryLimit);
+                if ($feedData) {
+                    $feedData['content_type'] = 'youtube';
+                }
+            } else {
+                $feedData = $feedService->fetchRssFeed($this->feedUrl, $entryLimit);
+                if ($feedData) {
+                    $feedData['content_type'] = $contentType;
+                }
+            }
 
             if (! $feedData) {
-                Log::warning('YouTube channel fetch failed', ['url' => $this->feedUrl]);
+                Log::warning('Feed fetch failed', ['url' => $this->feedUrl, 'type' => $contentType]);
 
                 return;
             }
 
-            Log::debug('YouTube channel data fetched', [
+            Log::debug('Feed data fetched', [
                 'title' => $feedData['title'] ?? 'Unknown',
+                'content_type' => $feedData['content_type'],
                 'entries_count' => count($feedData['entries'] ?? []),
             ]);
 
-            // Create or update the feed
             $feed = $feedService->createOrUpdateFeed($feedData);
 
-            // Create entries (limit to last 100 for performance)
             if (! empty($feedData['entries'])) {
                 $entries = array_slice($feedData['entries'], 0, 100);
                 $feedService->createEntries($feed, $entries);
             }
 
-            // If this is for a specific user, create the subscription
             if ($this->userId) {
                 $this->createUserSubscription($feed);
                 $this->markEntriesAsUnread($feed);
             }
 
-            // Update last fetched timestamp
             $feed->update(['last_fetched_at' => now()]);
 
             Log::debug('FetchFeedJob completed successfully', ['feed_id' => $feed->id]);
@@ -95,7 +100,6 @@ class FetchFeedJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
-            // Don't retry connection errors
             $this->fail($e);
 
         } catch (RequestException $e) {
@@ -106,7 +110,6 @@ class FetchFeedJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
-            // Don't retry 4xx errors
             if ($e->response && $e->response->status() >= 400 && $e->response->status() < 500) {
                 $this->fail($e);
             }
@@ -120,14 +123,10 @@ class FetchFeedJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
-            // Re-throw for retry logic
             throw $e;
         }
     }
 
-    /**
-     * Handle a job failure.
-     */
     public function failed(\Throwable $exception): void
     {
         Log::error('FetchFeedJob failed permanently', [
@@ -153,7 +152,6 @@ class FetchFeedJob implements ShouldQueue
 
     private function markEntriesAsUnread(Feed $feed): void
     {
-        // Limit all feeds to 15 unread posts initially
         $limit = 15;
 
         $query = $feed->entries()->latest('published_at');
@@ -175,5 +173,20 @@ class FetchFeedJob implements ShouldQueue
                 ]
             );
         }
+    }
+
+    private function detectContentType(string $url): string
+    {
+        $urlLower = strtolower($url);
+
+        if (str_contains($urlLower, 'youtube.com') || str_contains($urlLower, 'youtu.be')) {
+            return 'youtube';
+        }
+
+        if (str_contains($urlLower, 'podcast') || str_contains($urlLower, 'itunes')) {
+            return 'podcast';
+        }
+
+        return 'rss';
     }
 }

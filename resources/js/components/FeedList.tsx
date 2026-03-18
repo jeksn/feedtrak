@@ -176,10 +176,10 @@ export function FeedList({
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight">
-                        Your Feeds
+                        Your Sources
                     </h2>
                     <p className="text-muted-foreground">
-                        Manage your RSS feeds and subscriptions
+                        Manage all your feed sources
                     </p>
                 </div>
                 <div className="flex items-center gap-2">

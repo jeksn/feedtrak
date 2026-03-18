@@ -32,6 +32,45 @@ class FeedService
         }
     }
 
+    /**
+     * Fetch a generic RSS/Atom feed.
+     */
+    public function fetchRssFeed(string $url, ?int $entryLimit = null): ?array
+    {
+        try {
+            return $this->parseFeed($url, $entryLimit);
+        } catch (\Exception $e) {
+            Log::error('RSS feed fetch failed', ['url' => $url, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Discover a feed from a URL (for OPML import).
+     */
+    public function discoverFeed(string $url): ?array
+    {
+        // Handle YouTube URLs
+        if ($this->isYouTubeUrl($url)) {
+            try {
+                return $this->fetchYouTubeChannel($url, 15);
+            } catch (\Exception $e) {
+                Log::warning('YouTube feed discovery failed', ['url' => $url, 'error' => $e->getMessage()]);
+
+                return null;
+            }
+        }
+
+        try {
+            return $this->parseFeed($url, 15);
+        } catch (\Exception $e) {
+            Log::warning('Feed discovery failed', ['url' => $url, 'error' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
     private function isYouTubeUrl(string $url): bool
     {
         return str_contains($url, 'youtube.com') || str_contains($url, 'youtu.be');
@@ -518,10 +557,11 @@ class FeedService
         $feed = Feed::firstOrCreate(
             ['feed_url' => $feedData['feed_url']],
             [
-                'url' => $feedData['url'],
+                'url' => $feedData['url'] ?? $feedData['feed_url'],
                 'title' => $title,
                 'description' => $description,
-                'type' => $feedData['type'],
+                'type' => $feedData['type'] ?? 'rss',
+                'content_type' => $feedData['content_type'] ?? 'rss',
                 'icon_url' => $feedData['icon_url'] ?? null,
                 'avatar_url' => $feedData['avatar_url'] ?? null,
                 'last_fetched_at' => now(),
@@ -573,10 +613,10 @@ class FeedService
             }
         }
 
-        // Notify users about new videos if there are any
-        if (! empty($newVideos)) {
-            $this->notifyUsersOfNewVideos($feed, $newVideos);
-        }
+        // Notifications now handled by daily digest at 8am
+        // if (! empty($newVideos)) {
+        //     $this->notifyUsersOfNewVideos($feed, $newVideos);
+        // }
     }
 
     private function notifyUsersOfNewVideos(Feed $feed, array $newVideos): void

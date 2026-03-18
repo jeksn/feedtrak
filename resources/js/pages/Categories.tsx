@@ -15,7 +15,7 @@ interface Feed {
 }
 
 interface Category {
-    id: number | null;
+    id: number | string | null;
     name: string;
     user_feeds_count: number;
     feeds?: Feed[];
@@ -34,10 +34,10 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 export default function Categories({ categories }: CategoriesProps) {
     const [expandedCategories, setExpandedCategories] = useState<
-        Set<number | null>
+        Set<number | string | null>
     >(new Set());
 
-    const toggleCategory = (categoryId: number | null) => {
+    const toggleCategory = (categoryId: number | string | null) => {
         setExpandedCategories((prev) => {
             const next = new Set(prev);
             if (next.has(categoryId)) {
@@ -48,9 +48,9 @@ export default function Categories({ categories }: CategoriesProps) {
             return next;
         });
     };
-    const handleDeleteCategory = (categoryId: number | null) => {
-        if (categoryId === null) {
-            // Cannot delete uncategorized category
+    const handleDeleteCategory = (categoryId: number | string | null) => {
+        if (categoryId === null || categoryId === 'podcasts') {
+            // Cannot delete uncategorized or Podcasts category
             return;
         }
 
@@ -144,35 +144,42 @@ export default function Categories({ categories }: CategoriesProps) {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-1">
-                                                    {category.id !== null && (
-                                                        <>
-                                                            <CategoryForm
-                                                                category={
-                                                                    category
-                                                                }
-                                                                trigger={
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                    >
-                                                                        <Edit className="h-4 w-4" />
-                                                                    </Button>
-                                                                }
-                                                            />
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    handleDeleteCategory(
-                                                                        category.id,
-                                                                    )
-                                                                }
-                                                                className="text-destructive hover:text-destructive"
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </>
-                                                    )}
+                                                    {category.id !== null &&
+                                                        category.name !==
+                                                            'Podcasts' && (
+                                                            <>
+                                                                <CategoryForm
+                                                                    category={{
+                                                                        id:
+                                                                            typeof category.id ===
+                                                                            'number'
+                                                                                ? category.id
+                                                                                : null,
+                                                                        name: category.name,
+                                                                    }}
+                                                                    trigger={
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                        >
+                                                                            <Edit className="h-4 w-4" />
+                                                                        </Button>
+                                                                    }
+                                                                />
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    onClick={() =>
+                                                                        handleDeleteCategory(
+                                                                            category.id,
+                                                                        )
+                                                                    }
+                                                                    className="text-destructive hover:text-destructive"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </>
+                                                        )}
                                                 </div>
                                             </div>
                                         </div>

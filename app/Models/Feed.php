@@ -16,6 +16,7 @@ class Feed extends Model
         'description',
         'feed_url',
         'type',
+        'content_type',
         'icon_url',
         'avatar_url',
         'banner_url',

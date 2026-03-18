@@ -10,33 +10,63 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard, feeds } from '@/routes';
+import { channels, dashboard, feeds, podcasts, videos } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Rss, Tag, Settings } from 'lucide-react';
+import {
+    BookOpen,
+    Folder,
+    Layers,
+    Mic,
+    Rss,
+    Settings,
+    Tag,
+    Upload,
+    Youtube,
+} from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Home',
+        title: 'All',
         href: dashboard(),
-        icon: LayoutGrid,
+        icon: Layers,
     },
-	{
+    {
+        title: 'Videos',
+        href: videos(),
+        icon: Youtube,
+    },
+    {
         title: 'Feeds',
         href: feeds(),
         icon: Rss,
     },
-	{
+    {
+        title: 'Podcasts',
+        href: podcasts(),
+        icon: Mic,
+    },
+    {
+        title: 'Sources',
+        href: channels(),
+        icon: Youtube,
+    },
+    {
         title: 'Categories',
         href: '/categories',
         icon: Tag,
     },
     {
+        title: 'Import',
+        href: '/settings/import',
+        icon: Upload,
+    },
+    {
         title: 'Settings',
         href: '/settings/profile',
         icon: Settings,
-    }
+    },
 ];
 
 const footerNavItems: NavItem[] = [

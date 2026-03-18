@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Settings\OpmlImportController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
@@ -8,6 +9,7 @@ use Inertia\Inertia;
 
 Route::middleware('auth')->group(function () {
     Route::redirect('settings', '/settings/profile');
+    Route::redirect('import', '/settings/import');
 
     Route::get('settings/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('settings/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -23,10 +25,9 @@ Route::middleware('auth')->group(function () {
         return Inertia::render('settings/appearance');
     })->name('appearance.edit');
 
-    Route::get('settings/opml', function () {
-        return Inertia::render('settings/opml');
-    })->name('opml.import');
-
     Route::get('settings/two-factor', [TwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
+
+    Route::get('settings/import', [OpmlImportController::class, 'show'])->name('import.edit');
+    Route::post('settings/import', [OpmlImportController::class, 'import'])->name('import.store');
 });

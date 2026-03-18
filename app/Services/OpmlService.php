@@ -105,12 +105,16 @@ class OpmlService
         }
         // This is a feed
         elseif (isset($attributes->xmlUrl)) {
+            $feedUrl = (string) $attributes->xmlUrl;
+            $contentType = $this->detectContentType($feedUrl);
+
             $feedData = [
                 'title' => (string) ($attributes->title ?? $attributes->text ?? 'Untitled Feed'),
-                'url' => (string) ($attributes->htmlUrl ?? $attributes->xmlUrl),
-                'feed_url' => (string) $attributes->xmlUrl,
+                'url' => (string) ($attributes->htmlUrl ?? $feedUrl),
+                'feed_url' => $feedUrl,
                 'description' => (string) ($attributes->description ?? ''),
                 'category' => $parentCategory,
+                'content_type' => $contentType,
             ];
 
             $result['feeds'][] = $feedData;
@@ -120,6 +124,27 @@ class OpmlService
                 $result['categories'][$parentCategory]['feeds'][] = $feedData;
             }
         }
+    }
+
+    private function detectContentType(string $url): string
+    {
+        $urlLower = strtolower($url);
+
+        // YouTube detection
+        if (str_contains($urlLower, 'youtube.com') || str_contains($urlLower, 'youtu.be')) {
+            return 'youtube';
+        }
+
+        // Podcast detection - only from known podcast platforms
+        $podcastDomains = ['podcast', 'itunes.apple', 'anchor.fm', 'spotify.', 'overcast.fm', 'pocketcasts', 'castbox'];
+        foreach ($podcastDomains as $domain) {
+            if (str_contains($urlLower, $domain)) {
+                return 'podcast';
+            }
+        }
+
+        // Default to RSS (most feeds are RSS, not podcasts)
+        return 'rss';
     }
 
     public function importOpml(string $opmlContent, int $userId): array
@@ -213,8 +238,14 @@ class OpmlService
                 return;
             }
 
+            // Override content_type with the detected type from OPML
+            $discoveredFeed['content_type'] = $feedData['content_type'] ?? 'rss';
+            $discoveredFeed['feed_url'] = $feedData['feed_url'];
+
             // Create or update feed
             $feed = $feedService->createOrUpdateFeed($discoveredFeed);
+
+            Log::info('OPML feed imported', ['feed_id' => $feed->id, 'title' => $feed->title, 'content_type' => $feed->content_type]);
 
             // Create user feed relationship
             UserFeed::create([
@@ -230,8 +261,8 @@ class OpmlService
             $imported['feeds_imported']++;
 
             // Don't dispatch job immediately - let it happen in the background
-            // Queue initial fetch without blocking
-            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
+            // Queue initial fetch without blocking - pass userId to create subscription and mark entries as unread
+            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url, $userId, $categoryId)->onQueue('feeds');
         } catch (\Exception $e) {
             Log::error('Failed to import feed', [
                 'feed_url' => $feedData['feed_url'],

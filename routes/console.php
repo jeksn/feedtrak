@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('feeds:refresh')->everyFiveMinutes()->withoutOverlapping()->runInBackground();
 Schedule::command('entries:fetch-thumbnails --limit=50')->hourly()->withoutOverlapping();
+Schedule::command('feeds:send-daily-digest')->dailyAt('8:00')->withoutOverlapping();

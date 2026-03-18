@@ -22,6 +22,15 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('app', \App\Http\Controllers\DashboardController::class)->name('dashboard');
 
+    // Videos (YouTube only)
+    Route::get('/videos', \App\Http\Controllers\ContentTypeController::class)->name('videos');
+
+    // RSS Feeds
+    Route::get('/feeds', \App\Http\Controllers\ContentTypeController::class)->name('feeds');
+
+    // Podcasts
+    Route::get('/podcasts', \App\Http\Controllers\ContentTypeController::class)->name('podcasts');
+
     // Categories management route
     Route::get('/categories', function () {
         $categories = Auth::user()->categories()
@@ -101,6 +110,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/categories/{category}', function (\App\Models\Category $category) {
         if ($category->user_id !== Auth::id()) {
             abort(403);
+        }
+
+        // Cannot delete the Podcasts category
+        if ($category->name === 'Podcasts') {
+            return back()->withErrors(['error' => 'Cannot delete the Podcasts category.']);
         }
 
         // Move feeds from this category to uncategorized
@@ -288,6 +302,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('ChannelDetail', [
             'channel' => $feed,
             'videos' => $entries,
+            'categories' => Auth::user()->categories()
+                ->orderBy('sort_order')
+                ->orderBy('name')
+                ->get()
+                ->prepend((object) ['id' => null, 'name' => 'None'])
+                ->prepend((object) ['id' => 'podcasts', 'name' => 'Podcasts']),
         ]);
     })->name('channels.show');
 
@@ -342,20 +362,27 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'feed_id' => $feed->id,
         ])->firstOrFail();
 
-        $validated = $request->validate([
-            'category_id' => 'nullable|exists:categories,id',
-        ]);
+        $categoryId = $request->input('category_id');
 
-        // Verify user owns the category if provided
-        if ($validated['category_id']) {
+        // Handle "podcasts" special value
+        if ($categoryId === 'podcasts') {
+            $category = \App\Models\Category::firstOrCreate(
+                ['user_id' => Auth::id(), 'name' => 'Podcasts'],
+                ['sort_order' => -1]
+            );
+            $categoryId = $category->id;
+        } elseif ($categoryId === 'none' || $categoryId === null || $categoryId === '') {
+            $categoryId = null;
+        } else {
+            // Verify user owns the category if provided
             $category = \App\Models\Category::where([
-                'id' => $validated['category_id'],
+                'id' => $categoryId,
                 'user_id' => Auth::id(),
             ])->firstOrFail();
         }
 
         $userFeed->update([
-            'category_id' => $validated['category_id'],
+            'category_id' => $categoryId,
         ]);
 
         return back()->with('success', 'Channel category updated successfully.');

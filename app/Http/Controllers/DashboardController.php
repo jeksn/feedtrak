@@ -14,21 +14,22 @@ class DashboardController extends Controller
     public function __invoke(Request $request)
     {
         $user = Auth::user();
+        $contentType = $request->get('type');
 
         // Auto-refresh stale feeds (older than 30 minutes)
         $staleChannels = $user->feeds()
-            ->where(function ($query) {
-                $query->whereNull('last_fetched_at')
-                    ->orWhere('last_fetched_at', '<', now()->subMinutes(30));
-            })
+            ->when($contentType, fn ($q) => $q->where('content_type', $contentType))
+            ->where(fn ($q) => $q->whereNull('last_fetched_at')->orWhere('last_fetched_at', '<', now()->subMinutes(30)))
             ->get();
 
         foreach ($staleChannels as $feed) {
             \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
         }
 
-        // Get stats
-        $totalChannels = $user->feeds()->count();
+        // Get stats - filtered by type if specified
+        $totalChannels = $user->feeds()
+            ->when($contentType, fn ($q) => $q->where('content_type', $contentType))
+            ->count();
         $savedCount = $user->savedItems()->count();
 
         // Get entries for different tabs with pagination
@@ -62,10 +63,12 @@ class DashboardController extends Controller
                 'entries.feed_id',
                 'feeds.title as channel_title',
                 'feeds.url as channel_url',
+                'feeds.content_type',
                 'user_entry_reads.id as seen_id',
                 'user_entry_reads.is_read',
                 'saved_items.id as saved_id',
             ])
+            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
             ->orderBy('entries.published_at', 'desc');
 
         // Get paginated entries
@@ -94,6 +97,7 @@ class DashboardController extends Controller
                     'title' => $channelTitle,
                     'url' => $video->channel_url,
                 ],
+                'content_type' => $video->content_type ?? 'youtube',
                 'is_seen' => $video->is_read ?? false,
                 'is_saved' => $video->saved_id !== null,
                 'seen_id' => $video->seen_id,
@@ -108,14 +112,12 @@ class DashboardController extends Controller
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
                     ->where('user_feeds.user_id', '=', $user->id);
             })
+            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
                     ->where('user_entry_reads.user_id', '=', $user->id);
             })
-            ->where(function ($query) {
-                $query->whereNull('user_entry_reads.id')
-                    ->orWhere('user_entry_reads.is_read', '=', false);
-            })
+            ->where(fn ($q) => $q->whereNull('user_entry_reads.id')->orWhere('user_entry_reads.is_read', '=', false))
             ->count();
 
         // Get unseen entries with pagination
@@ -126,15 +128,13 @@ class DashboardController extends Controller
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
                     ->where('user_feeds.user_id', '=', $user->id);
             })
+            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
                     ->where('user_entry_reads.user_id', '=', $user->id);
             })
-            ->where(function ($query) {
-                $query->whereNull('user_entry_reads.id')
-                    ->orWhere('user_entry_reads.is_read', '=', false);
-            })
-            ->select('entries.*', 'feeds.title as channel_title', 'feeds.url as channel_url')
+            ->where(fn ($q) => $q->whereNull('user_entry_reads.id')->orWhere('user_entry_reads.is_read', '=', false))
+            ->select('entries.*', 'feeds.title as channel_title', 'feeds.url as channel_url', 'feeds.content_type')
             ->orderBy('entries.published_at', 'desc')
             ->paginate($perPage, ['*'], 'unseen_page', $unseenPage);
 
@@ -153,6 +153,7 @@ class DashboardController extends Controller
                     'title' => $this->cleanUtf8($video->channel_title),
                     'url' => $video->channel_url,
                 ],
+                'content_type' => $video->content_type ?? 'youtube',
                 'is_seen' => false,
                 'is_saved' => false,
                 'seen_id' => null,
@@ -173,6 +174,7 @@ class DashboardController extends Controller
         $savedPaginated = DB::table('saved_items')
             ->join('entries', 'entries.id', '=', 'saved_items.entry_id')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
+            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
             ->leftJoin('user_entry_reads', function ($join) use ($user) {
                 $join->on('user_entry_reads.entry_id', '=', 'entries.id')
                     ->where('user_entry_reads.user_id', '=', $user->id);
@@ -190,6 +192,7 @@ class DashboardController extends Controller
                 'entries.feed_id',
                 'feeds.title as channel_title',
                 'feeds.url as channel_url',
+                'feeds.content_type',
                 'user_entry_reads.id as seen_id',
                 'user_entry_reads.is_read',
                 'saved_items.id as saved_id',
@@ -212,6 +215,7 @@ class DashboardController extends Controller
                     'title' => $this->cleanUtf8($savedItem->channel_title),
                     'url' => $savedItem->channel_url,
                 ],
+                'content_type' => $savedItem->content_type ?? 'youtube',
                 'is_seen' => $savedItem->is_read ?? false,
                 'is_saved' => true,
                 'seen_id' => $savedItem->seen_id,
@@ -254,7 +258,10 @@ class DashboardController extends Controller
         // Get user's view preference
         $videoViewMode = UserPreference::get($user->id, 'video_view_mode', 'list');
 
+        $pageTitle = $request->get('title', 'Home');
+
         return inertia('Home', [
+            'pageTitle' => $pageTitle,
             'stats' => $stats,
             'videos' => $videos,
             'pagination' => $paginationData,

@@ -16,11 +16,6 @@ const sidebarNavItems: NavItem[] = [
         href: edit(),
         icon: null,
     },
-	{
-		title: 'Import Feeds',
-		href: '/settings/opml',
-		icon: null,
-	},
     {
         title: 'Password',
         href: editPassword(),

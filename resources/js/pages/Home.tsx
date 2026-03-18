@@ -4,7 +4,7 @@ import { useState } from "react";
 import { EntryList } from "@/components/EntryList";
 import { EntryCard } from "@/components/EntryCard";
 import { FeedForm } from "@/components/FeedForm";
-import { type BreadcrumbItem } from "@/types";
+import { type BseencrumbItem } from "@/types";
 import { Head } from "@inertiajs/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,7 @@ import AppLayout from "@/layouts/app-layout";
 import { router } from "@inertiajs/react";
 import { dashboard } from '@/routes';
 
-interface Entry {
+interface Video {
   id: number;
   title: string;
   content: string | null;
@@ -25,27 +25,27 @@ interface Entry {
   thumbnail_url: string | null;
   author: string | null;
   published_at: string;
-  feed: {
+  channel: {
     id: number;
     title: string;
     url: string;
   };
-  is_read: boolean;
+  is_seen: boolean;
   is_saved: boolean;
-  read_id?: number;
+  seen_id?: number;
   saved_id?: number;
 }
 
 interface DashboardProps {
   stats: {
-    totalFeeds: number;
-    unreadCount: number;
+    totalChannels: number;
+    unseenCount: number;
     savedCount: number;
   };
-  entries: {
-    all: Entry[];
-    unread: Entry[];
-    saved: Entry[];
+  videos: {
+    all: Video[];
+    unseen: Video[];
+    saved: Video[];
   };
   pagination?: {
     current_page: number;
@@ -54,7 +54,7 @@ interface DashboardProps {
     total: number;
     has_more: boolean;
   };
-  unreadPagination?: {
+  unseenPagination?: {
     current_page: number;
     last_page: number;
     per_page: number;
@@ -72,39 +72,39 @@ interface DashboardProps {
     id: number;
     name: string;
   }>;
-  entryViewMode: string;
+  videoViewMode: string;
 }
 
-const breadcrumbs: BreadcrumbItem[] = [
+const bseencrumbs: BseencrumbItem[] = [
     {
         title: 'Home',
         href: dashboard().url,
     },
 ];
 
-export default function Home({ stats, entries, categories, entryViewMode, pagination, unreadPagination, savedPagination }: DashboardProps) {
-  const [activeTab, setActiveTab] = useState("unread");
+export default function Home({ stats, videos, categories, videoViewMode, pagination, unseenPagination, savedPagination }: DashboardProps) {
+  const [activeTab, setActiveTab] = useState("unseen");
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
-  const [viewMode, setViewMode] = useState(entryViewMode);
+  const [viewMode, setViewMode] = useState(videoViewMode);
   const [currentPage, setCurrentPage] = useState(pagination?.current_page || 1);
-  const [unreadPage, setUnreadPage] = useState(unreadPagination?.current_page || 1);
+  const [unseenPage, setUnseenPage] = useState(unseenPagination?.current_page || 1);
   const [savedPage, setSavedPage] = useState(savedPagination?.current_page || 1);
-  const [allEntries, setAllEntries] = useState<Entry[]>(entries.all || []);
-  const [unreadEntries, setUnreadEntries] = useState<Entry[]>(entries.unread || []);
-  const [savedEntries, setSavedEntries] = useState<Entry[]>(entries.saved || []);
+  const [allVideos, setAllVideos] = useState<Video[]>(videos.all || []);
+  const [unseenVideos, setUnseenVideos] = useState<Video[]>(videos.unseen || []);
+  const [savedVideos, setSavedVideos] = useState<Video[]>(videos.saved || []);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [unreadHasMore, setUnreadHasMore] = useState(unreadPagination?.has_more || false);
+  const [unseenHasMore, setUnseenHasMore] = useState(unseenPagination?.has_more || false);
   const [savedHasMore, setSavedHasMore] = useState(savedPagination?.has_more || false);
-  const [unreadCount, setUnreadCount] = useState(stats.unreadCount);
+  const [unseenCount, setUnseenCount] = useState(stats.unseenCount);
   const [savedCount, setSavedCount] = useState(stats.savedCount);
 
-  const handleMarkAllAsRead = () => {
+  const handleMarkAllAsSeen = () => {
     // Optimistic update
-    setUnreadEntries([]);
-    setUnreadCount(0);
-    setAllEntries(prev => prev.map(e => ({ ...e, is_read: true })));
+    setUnseenVideos([]);
+    setUnseenCount(0);
+    setAllVideos(prev => prev.map(e => ({ ...e, is_seen: true })));
 
-    router.post('/entries/mark-all-read', {}, {
+    router.post('/videos/mark-all-seen', {}, {
       onSuccess: () => {
         router.reload();
       },
@@ -115,14 +115,14 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     });
   };
 
-  const handleRefreshAllFeeds = () => {
+  const handleRefreshAllChannels = () => {
     setIsRefreshingAll(true);
-    router.post('/entries/refresh-all', {}, {
+    router.post('/videos/refresh-all', {}, {
       onSuccess: () => {
         router.reload();
       },
       onError: (errors) => {
-        console.error('Failed to refresh feeds:', errors);
+        console.error('Failed to refresh channels:', errors);
       },
       onFinish: () => {
         setIsRefreshingAll(false);
@@ -133,48 +133,48 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
   const handleViewModeChange = (value: string) => {
     setViewMode(value);
     router.post('/preferences', {
-      key: 'entry_view_mode',
+      key: 'video_view_mode',
       value: value
     });
   };
 
-  const handleReadToggle = (entryId: number, isRead: boolean) => {
+  const handleSeenToggle = (videoId: number, isSeen: boolean) => {
     // Update in all lists
-    setAllEntries(prev => prev.map(e => e.id === entryId ? { ...e, is_read: isRead } : e));
+    setAllVideos(prev => prev.map(e => e.id === videoId ? { ...e, is_seen: isSeen } : e));
     
-    if (isRead) {
-      // Remove from unread list
-      setUnreadEntries(prev => prev.filter(e => e.id !== entryId));
-      setUnreadCount(prev => Math.max(0, prev - 1));
+    if (isSeen) {
+      // Remove from unseen list
+      setUnseenVideos(prev => prev.filter(e => e.id !== videoId));
+      setUnseenCount(prev => Math.max(0, prev - 1));
     } else {
-      // Add back to unread list (find from allEntries)
-      const entry = allEntries.find(e => e.id === entryId);
-      if (entry) {
-        setUnreadEntries(prev => [{ ...entry, is_read: false }, ...prev].sort(
+      // Add back to unseen list (find from allVideos)
+      const video = allVideos.find(e => e.id === videoId);
+      if (video) {
+        setUnseenVideos(prev => [{ ...video, is_seen: false }, ...prev].sort(
           (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
         ));
       }
-      setUnreadCount(prev => prev + 1);
+      setUnseenCount(prev => prev + 1);
     }
   };
 
-  const handleSaveToggle = (entryId: number, isSaved: boolean) => {
-    setAllEntries(prev => prev.map(e => e.id === entryId ? { ...e, is_saved: isSaved } : e));
-    setUnreadEntries(prev => prev.map(e => e.id === entryId ? { ...e, is_saved: isSaved } : e));
+  const handleSaveToggle = (videoId: number, isSaved: boolean) => {
+    setAllVideos(prev => prev.map(e => e.id === videoId ? { ...e, is_saved: isSaved } : e));
+    setUnseenVideos(prev => prev.map(e => e.id === videoId ? { ...e, is_saved: isSaved } : e));
     
     if (isSaved) {
-      const entry = allEntries.find(e => e.id === entryId) || unreadEntries.find(e => e.id === entryId);
-      if (entry) {
-        setSavedEntries(prev => [{ ...entry, is_saved: true }, ...prev]);
+      const video = allVideos.find(e => e.id === videoId) || unseenVideos.find(e => e.id === videoId);
+      if (video) {
+        setSavedVideos(prev => [{ ...video, is_saved: true }, ...prev]);
       }
       setSavedCount(prev => prev + 1);
     } else {
-      setSavedEntries(prev => prev.filter(e => e.id !== entryId));
+      setSavedVideos(prev => prev.filter(e => e.id !== videoId));
       setSavedCount(prev => Math.max(0, prev - 1));
     }
   };
 
-  const loadMoreEntries = () => {
+  const loadMoreVideos = () => {
     if (!pagination?.has_more || isLoadingMore || activeTab !== 'all') return;
     
     setIsLoadingMore(true);
@@ -182,12 +182,12 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     
     router.reload({
       data: { page: nextPage },
-      only: ['entries', 'pagination'],
+      only: ['videos', 'pagination'],
       onSuccess: (page) => {
         const props = page.props as unknown as DashboardProps;
-        const newEntries = props.entries?.all || [];
-        if (newEntries.length > 0) {
-          setAllEntries(prev => [...prev, ...newEntries]);
+        const newVideos = props.videos?.all || [];
+        if (newVideos.length > 0) {
+          setAllVideos(prev => [...prev, ...newVideos]);
           setCurrentPage(nextPage);
         }
         setIsLoadingMore(false);
@@ -199,27 +199,27 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     });
   };
 
-  const loadMoreUnread = () => {
-    if (!unreadHasMore || isLoadingMore) return;
+  const loadMoreUnseen = () => {
+    if (!unseenHasMore || isLoadingMore) return;
     
     setIsLoadingMore(true);
-    const nextPage = unreadPage + 1;
+    const nextPage = unseenPage + 1;
     
     router.reload({
-      data: { unread_page: nextPage },
-      only: ['entries', 'unreadPagination'],
+      data: { unseen_page: nextPage },
+      only: ['videos', 'unseenPagination'],
       onSuccess: (page) => {
         const props = page.props as unknown as DashboardProps;
-        const newEntries = props.entries?.unread || [];
-        if (newEntries.length > 0) {
-          setUnreadEntries(prev => [...prev, ...newEntries]);
-          setUnreadPage(nextPage);
-          setUnreadHasMore(props.unreadPagination?.has_more || false);
+        const newVideos = props.videos?.unseen || [];
+        if (newVideos.length > 0) {
+          setUnseenVideos(prev => [...prev, ...newVideos]);
+          setUnseenPage(nextPage);
+          setUnseenHasMore(props.unseenPagination?.has_more || false);
         }
         setIsLoadingMore(false);
       },
       onError: (errors) => {
-        console.error('Load more unread error:', errors);
+        console.error('Load more unseen error:', errors);
         setIsLoadingMore(false);
       }
     });
@@ -233,12 +233,12 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
     
     router.reload({
       data: { saved_page: nextPage },
-      only: ['entries', 'savedPagination'],
+      only: ['videos', 'savedPagination'],
       onSuccess: (page) => {
         const props = page.props as unknown as DashboardProps;
-        const newEntries = props.entries?.saved || [];
-        if (newEntries.length > 0) {
-          setSavedEntries(prev => [...prev, ...newEntries]);
+        const newVideos = props.videos?.saved || [];
+        if (newVideos.length > 0) {
+          setSavedVideos(prev => [...prev, ...newVideos]);
           setSavedPage(nextPage);
           setSavedHasMore(props.savedPagination?.has_more || false);
         }
@@ -252,7 +252,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
   };
 
   return (
-    <AppLayout breadcrumbs={breadcrumbs}>
+    <AppLayout bseencrumbs={bseencrumbs}>
       <Head title="Home" />
       <div className="container mx-auto px-6 py-6 space-y-6">
         {/* Header */}
@@ -260,14 +260,14 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Home</h1>
             <p className="text-muted-foreground">
-              Welcome back! Here's what's new in your feeds.
+              Welcome back! Here's what's new in your channels.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
               size="sm"
-              onClick={handleRefreshAllFeeds}
+              onClick={handleRefreshAllChannels}
               disabled={isRefreshingAll}
               className="gap-2"
             >
@@ -279,7 +279,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4" />
-                  Refresh All Feeds
+                  Refresh All Channels
                 </>
               )}
             </Button>
@@ -287,15 +287,15 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
           </div>
         </div>
 
-        {/* Entries */}
+        {/* Videos */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <div className="flex items-center justify-between">
             <TabsList>
-              <TabsTrigger value="unread" className="flex items-center gap-2">
+              <TabsTrigger value="unseen" className="flex items-center gap-2">
                 <Eye className="h-4 w-4" />
-                Unread
-                {unreadCount > 0 && (
-                  <Badge variant="outline">{unreadCount}</Badge>
+                Unseen
+                {unseenCount > 0 && (
+                  <Badge variant="outline">{unseenCount}</Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger value="all" className="flex items-center gap-2">
@@ -315,12 +315,12 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleMarkAllAsRead}
-                disabled={unreadCount === 0}
+                onClick={handleMarkAllAsSeen}
+                disabled={unseenCount === 0}
                 className="gap-2"
               >
                 <CheckCheck className="h-4 w-4" />
-                Mark All as Read
+                Mark All as Seen
               </Button>
               <ToggleGroup type="single" value={viewMode} onValueChange={handleViewModeChange}>
                 <ToggleGroupItem value="list" aria-label="List view">
@@ -333,15 +333,15 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
             </div>
           </div>
 
-          <TabsContent value="unread">
+          <TabsContent value="unseen">
             {viewMode === 'list' ? (
               <div className="space-y-4">
-                <EntryList entries={unreadEntries} showUnreadOnly={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
-                {unreadHasMore && (
+                <EntryList videos={unseenVideos} showUnseenOnly={true} onSeenToggle={handleSeenToggle} onSaveToggle={handleSaveToggle} />
+                {unseenHasMore && (
                   <div className="flex justify-center">
                     <Button
                       variant="outline"
-                      onClick={loadMoreUnread}
+                      onClick={loadMoreUnseen}
                       disabled={isLoadingMore}
                     >
                       {isLoadingMore ? (
@@ -362,20 +362,20 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
             ) : (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {unreadEntries.map((entry) => (
+                  {unseenVideos.map((video) => (
                     <EntryCard
-                      key={entry.id}
-                      entry={entry}
-                      onReadToggle={handleReadToggle}
+                      key={video.id}
+                      video={video}
+                      onSeenToggle={handleSeenToggle}
                       onSaveToggle={handleSaveToggle}
                     />
                   ))}
                 </div>
-                {unreadHasMore && (
+                {unseenHasMore && (
                   <div className="flex justify-center">
                     <Button
                       variant="outline"
-                      onClick={loadMoreUnread}
+                      onClick={loadMoreUnseen}
                       disabled={isLoadingMore}
                     >
                       {isLoadingMore ? (
@@ -399,12 +399,12 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
           <TabsContent value="all">
             {viewMode === 'list' ? (
               <div className="space-y-4">
-                <EntryList entries={allEntries} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
+                <EntryList videos={allVideos} onSeenToggle={handleSeenToggle} onSaveToggle={handleSaveToggle} />
                 {pagination?.has_more && (
                   <div className="flex justify-center">
                     <Button
                       variant="outline"
-                      onClick={loadMoreEntries}
+                      onClick={loadMoreVideos}
                       disabled={isLoadingMore}
                     >
                       {isLoadingMore ? (
@@ -425,11 +425,11 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
             ) : (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {allEntries.map((entry) => (
+                  {allVideos.map((video) => (
                     <EntryCard
-                      key={entry.id}
-                      entry={entry}
-                      onReadToggle={handleReadToggle}
+                      key={video.id}
+                      video={video}
+                      onSeenToggle={handleSeenToggle}
                       onSaveToggle={handleSaveToggle}
                     />
                   ))}
@@ -438,7 +438,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
                   <div className="flex justify-center">
                     <Button
                       variant="outline"
-                      onClick={loadMoreEntries}
+                      onClick={loadMoreVideos}
                       disabled={isLoadingMore}
                     >
                       {isLoadingMore ? (
@@ -462,7 +462,7 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
           <TabsContent value="saved">
             {viewMode === 'list' ? (
               <div className="space-y-4">
-                <EntryList entries={savedEntries} showSaved={true} onReadToggle={handleReadToggle} onSaveToggle={handleSaveToggle} />
+                <EntryList videos={savedVideos} showSaved={true} onSeenToggle={handleSeenToggle} onSaveToggle={handleSaveToggle} />
                 {savedHasMore && (
                   <div className="flex justify-center">
                     <Button
@@ -488,11 +488,11 @@ export default function Home({ stats, entries, categories, entryViewMode, pagina
             ) : (
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {savedEntries.map((entry) => (
+                  {savedVideos.map((video) => (
                     <EntryCard
-                      key={entry.id}
-                      entry={entry}
-                      onReadToggle={handleReadToggle}
+                      key={video.id}
+                      video={video}
+                      onSeenToggle={handleSeenToggle}
                       onSaveToggle={handleSaveToggle}
                     />
                   ))}

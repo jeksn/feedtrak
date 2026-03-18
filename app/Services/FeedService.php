@@ -11,31 +11,22 @@ use SimpleXMLElement;
 
 class FeedService
 {
-    public function discoverFeed(string $url, ?int $entryLimit = null): ?array
+    /**
+     * Fetch a YouTube channel and its videos.
+     * Only accepts YouTube URLs - all other URLs will return null.
+     */
+    public function fetchYouTubeChannel(string $url, ?int $entryLimit = null): ?array
     {
         try {
-            // Handle YouTube URLs
-            if ($this->isYouTubeUrl($url)) {
-                return $this->handleYouTubeUrl($url, $entryLimit);
-            }
+            if (! $this->isYouTubeUrl($url)) {
+                Log::warning('Non-YouTube URL provided', ['url' => $url]);
 
-            $response = Http::timeout(10)->get($url);
-
-            if (! $response->successful()) {
                 return null;
             }
 
-            $contentType = $response->header('content-type');
-
-            // If it's already a feed, parse it directly
-            if ($this->isFeedContentType($contentType)) {
-                return $this->parseFeedContent($response->body(), $url, $entryLimit);
-            }
-
-            // Try to find feed links in HTML
-            return $this->findFeedInHtml($response->body(), $url, $entryLimit);
+            return $this->handleYouTubeUrl($url, $entryLimit);
         } catch (\Exception $e) {
-            Log::error('Feed discovery failed', ['url' => $url, 'error' => $e->getMessage()]);
+            Log::error('YouTube channel fetch failed', ['url' => $url, 'error' => $e->getMessage()]);
 
             return null;
         }
@@ -336,59 +327,6 @@ class FeedService
         }
     }
 
-    private function isFeedContentType(?string $contentType): bool
-    {
-        if (! $contentType) {
-            return false;
-        }
-
-        return str_contains($contentType, 'application/rss+xml') ||
-               str_contains($contentType, 'application/atom+xml') ||
-               str_contains($contentType, 'application/xml') ||
-               str_contains($contentType, 'text/xml');
-    }
-
-    private function findFeedInHtml(string $html, string $baseUrl, ?int $entryLimit = null): ?array
-    {
-        $dom = new \DOMDocument;
-
-        // Suppress warnings for malformed HTML
-        libxml_use_internal_errors(true);
-        $dom->loadHTML($html);
-        libxml_clear_errors();
-
-        $xpath = new \DOMXPath($dom);
-
-        // Look for feed links
-        $links = $xpath->query('//link[@rel="alternate"][@type="application/rss+xml" or @type="application/atom+xml"]');
-
-        if ($links->length > 0) {
-            $href = $links->item(0)->getAttribute('href');
-            $feedUrl = $this->resolveUrl($href, $baseUrl);
-
-            return $this->parseFeed($feedUrl, $entryLimit);
-        }
-
-        return null;
-    }
-
-    private function resolveUrl(string $href, string $baseUrl): string
-    {
-        if (str_starts_with($href, 'http')) {
-            return $href;
-        }
-
-        $baseParts = parse_url($baseUrl);
-        $scheme = $baseParts['scheme'] ?? 'https';
-        $host = $baseParts['host'] ?? '';
-
-        if (str_starts_with($href, '/')) {
-            return "{$scheme}://{$host}{$href}";
-        }
-
-        return "{$scheme}://{$host}/".ltrim($href, '/');
-    }
-
     private function parseFeedContent(string $content, string $url, ?int $entryLimit = null): ?array
     {
         $xml = simplexml_load_string($content, SimpleXMLElement::class, LIBXML_NOCDATA);
@@ -423,6 +361,16 @@ class FeedService
         $feed['title'] = $this->cleanUtf8((string) ($channel->title ?? ''));
         $feed['description'] = $this->cleanUtf8((string) ($channel->description ?? ''));
         $feed['url'] = (string) ($channel->link ?? $feed['url']);
+
+        // Extract channel image/icon
+        if (isset($channel->image)) {
+            $feed['icon_url'] = (string) ($channel->image->url ?? null);
+        }
+
+        // Check for itunes:image namespace
+        if (isset($channel->children('itunes', true)->image)) {
+            $feed['icon_url'] = (string) $channel->children('itunes', true)->image['href'];
+        }
 
         $count = 0;
         $limit = $entryLimit ?? 15;
@@ -574,6 +522,8 @@ class FeedService
                 'title' => $title,
                 'description' => $description,
                 'type' => $feedData['type'],
+                'icon_url' => $feedData['icon_url'] ?? null,
+                'avatar_url' => $feedData['avatar_url'] ?? null,
                 'last_fetched_at' => now(),
             ]
         );
@@ -587,12 +537,16 @@ class FeedService
 
     public function createEntries(Feed $feed, array $entries): void
     {
+        $newVideos = [];
+
         foreach ($entries as $entryData) {
-            // Clean up any malformed UTF-8
-            $title = $this->cleanUtf8($entryData['title'] ?? 'Untitled');
+            $title = $this->cleanUtf8($entryData['title'] ?? 'Untitled Video');
             $content = $this->cleanUtf8($entryData['content'] ?? '');
-            $excerpt = $this->cleanUtf8($entryData['excerpt'] ?? $this->generateExcerptFromContent($content));
-            $author = $this->cleanUtf8($entryData['author'] ?? null);
+
+            // Check if entry already exists
+            $exists = Entry::where('feed_id', $feed->id)
+                ->where('url', $entryData['url'])
+                ->exists();
 
             $entry = Entry::updateOrCreate(
                 [
@@ -602,15 +556,39 @@ class FeedService
                 [
                     'title' => $title,
                     'content' => $content,
-                    'excerpt' => $excerpt,
-                    'author' => $author,
+                    'excerpt' => $entryData['excerpt'] ?? '',
+                    'author' => $entryData['author'] ?? null,
                     'published_at' => $entryData['published_at'] ?? now(),
                     'thumbnail_url' => $entryData['thumbnail_url'] ?? null,
                 ]
             );
 
+            // If it's a new entry and not the first fetch for this feed
+            if (! $exists && ! $feed->wasRecentlyCreated) {
+                $newVideos[] = $entry;
+            }
+
             if (! $entry->thumbnail_url && $entry->url) {
                 FetchEntryThumbnail::dispatch($entry);
+            }
+        }
+
+        // Notify users about new videos if there are any
+        if (! empty($newVideos)) {
+            $this->notifyUsersOfNewVideos($feed, $newVideos);
+        }
+    }
+
+    private function notifyUsersOfNewVideos(Feed $feed, array $newVideos): void
+    {
+        // Get all users subscribed to this channel who have email notifications enabled
+        $users = \App\Models\User::whereHas('userFeeds', function ($query) use ($feed) {
+            $query->where('feed_id', $feed->id)->where('is_active', true);
+        })->where('email_notifications_enabled', true)->get();
+
+        foreach ($users as $user) {
+            foreach ($newVideos as $video) {
+                $user->notify(new \App\Notifications\NewVideoNotification($feed, $video));
             }
         }
     }

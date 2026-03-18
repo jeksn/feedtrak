@@ -71,7 +71,7 @@ export function FeedForm({ categories }: FeedFormProps) {
     console.log('Submitting feed form:', data);
     setIsSubmitting(true);
     
-    router.post('/feeds', data, {
+    router.post('/channels', data, {
       onSuccess: (page) => {
         console.log('Feed added successfully:', page);
         toast({
@@ -89,7 +89,7 @@ export function FeedForm({ categories }: FeedFormProps) {
           if (errors.url.includes('youtube') || errors.url.includes('YouTube')) {
             toast({
               title: "YouTube Channel Error",
-              description: "Couldn't fetch the YouTube channel. Try using the channel's RSS feed URL directly: https://www.youtube.com/feeds/videos.xml?channel_id=CHANNEL_ID",
+              description: "Couldn't fetch the YouTube channel. Please check the URL and try again.",
               variant: "destructive",
             });
           } else {
@@ -118,15 +118,15 @@ export function FeedForm({ categories }: FeedFormProps) {
       <DialogTrigger asChild>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
-          Add Feed
+          Add Channel
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Feed or YouTube Channel</DialogTitle>
+          <DialogTitle>Add YouTube Channel</DialogTitle>
           <DialogDescription>
-            Add a new RSS feed or YouTube channel to your collection. You can add feeds from blogs,
-            news sites, or subscribe to YouTube channels directly.
+            Subscribe to a YouTube channel to track its latest videos. Enter the channel URL
+            (e.g., youtube.com/@channelname or youtube.com/channel/CHANNEL_ID).
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -136,15 +136,15 @@ export function FeedForm({ categories }: FeedFormProps) {
               name="url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Feed URL</FormLabel>
+                  <FormLabel>Channel URL</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="https://example.com/feed.xml or https://www.youtube.com/@channel"
+                      placeholder="https://www.youtube.com/@channelname"
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Enter an RSS feed URL or a website URL. For YouTube channels, you can use the channel URL directly (e.g., youtube.com/@channelname or youtube.com/channel/CHANNEL_ID)
+                    Enter a YouTube channel URL (e.g., youtube.com/@channelname or youtube.com/channel/CHANNEL_ID)
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -172,7 +172,7 @@ export function FeedForm({ categories }: FeedFormProps) {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Organize your feeds into categories
+                    Organize your channels into categories
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -186,7 +186,7 @@ export function FeedForm({ categories }: FeedFormProps) {
                     Adding...
                   </>
                 ) : (
-                  "Add Feed"
+                  "Add Channel"
                 )}
               </Button>
             </DialogFooter>

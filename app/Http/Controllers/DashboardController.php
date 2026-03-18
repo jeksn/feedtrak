@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entry;
-use App\Models\Feed;
 use App\Models\UserEntryRead;
 use App\Models\UserPreference;
 use Illuminate\Http\Request;
@@ -17,19 +16,19 @@ class DashboardController extends Controller
         $user = Auth::user();
 
         // Auto-refresh stale feeds (older than 30 minutes)
-        $staleFeeds = $user->feeds()
+        $staleChannels = $user->feeds()
             ->where(function ($query) {
                 $query->whereNull('last_fetched_at')
                     ->orWhere('last_fetched_at', '<', now()->subMinutes(30));
             })
             ->get();
 
-        foreach ($staleFeeds as $feed) {
+        foreach ($staleChannels as $feed) {
             \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
         }
 
         // Get stats
-        $totalFeeds = $user->feeds()->count();
+        $totalChannels = $user->feeds()->count();
         $savedCount = $user->savedItems()->count();
 
         // Get entries for different tabs with pagination
@@ -61,49 +60,49 @@ class DashboardController extends Controller
                 'entries.author',
                 'entries.published_at',
                 'entries.feed_id',
-                'feeds.title as feed_title',
-                'feeds.url as feed_url',
-                'user_entry_reads.id as read_id',
+                'feeds.title as channel_title',
+                'feeds.url as channel_url',
+                'user_entry_reads.id as seen_id',
                 'user_entry_reads.is_read',
                 'saved_items.id as saved_id',
             ])
             ->orderBy('entries.published_at', 'desc');
 
         // Get paginated entries
-        $paginatedEntries = $entriesQuery->paginate($perPage, ['*'], 'page', $page);
+        $paginatedVideos = $entriesQuery->paginate($perPage, ['*'], 'page', $page);
 
         // Format entries for frontend
-        $allEntries = $paginatedEntries->getCollection()->map(function ($entry) {
+        $allVideos = $paginatedVideos->getCollection()->map(function ($video) {
             // Clean up any malformed UTF-8
-            $title = $this->cleanUtf8($entry->title);
-            $content = $this->cleanUtf8($entry->content);
-            $excerpt = $this->cleanUtf8($entry->excerpt);
-            $author = $this->cleanUtf8($entry->author);
-            $feedTitle = $this->cleanUtf8($entry->feed_title);
+            $title = $this->cleanUtf8($video->title);
+            $content = $this->cleanUtf8($video->content);
+            $excerpt = $this->cleanUtf8($video->excerpt);
+            $author = $this->cleanUtf8($video->author);
+            $channelTitle = $this->cleanUtf8($video->channel_title);
 
             return [
-                'id' => $entry->id,
+                'id' => $video->id,
                 'title' => $title,
                 'content' => $content,
                 'excerpt' => $excerpt,
-                'url' => $entry->url,
-                'thumbnail_url' => $entry->thumbnail_url,
+                'url' => $video->url,
+                'thumbnail_url' => $video->thumbnail_url,
                 'author' => $author,
-                'published_at' => $entry->published_at,
-                'feed' => [
-                    'id' => $entry->feed_id,
-                    'title' => $feedTitle,
-                    'url' => $entry->feed_url,
+                'published_at' => $video->published_at,
+                'channel' => [
+                    'id' => $video->feed_id,
+                    'title' => $channelTitle,
+                    'url' => $video->channel_url,
                 ],
-                'is_read' => $entry->is_read ?? false,
-                'is_saved' => $entry->saved_id !== null,
-                'read_id' => $entry->read_id,
-                'saved_id' => $entry->saved_id,
+                'is_seen' => $video->is_read ?? false,
+                'is_saved' => $video->saved_id !== null,
+                'seen_id' => $video->seen_id,
+                'saved_id' => $video->saved_id,
             ];
         });
 
-        // Get unread count (no limit for accurate count)
-        $unreadCount = DB::table('entries')
+        // Get unseen count (no limit for accurate count)
+        $unseenCount = DB::table('entries')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->join('user_feeds', function ($join) use ($user) {
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
@@ -119,9 +118,9 @@ class DashboardController extends Controller
             })
             ->count();
 
-        // Get unread entries with pagination
-        $unreadPage = request()->get('unread_page', 1);
-        $unreadPaginated = DB::table('entries')
+        // Get unseen entries with pagination
+        $unseenPage = request()->get('unseen_page', 1);
+        $unseenPaginated = DB::table('entries')
             ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
             ->join('user_feeds', function ($join) use ($user) {
                 $join->on('user_feeds.feed_id', '=', 'feeds.id')
@@ -135,38 +134,38 @@ class DashboardController extends Controller
                 $query->whereNull('user_entry_reads.id')
                     ->orWhere('user_entry_reads.is_read', '=', false);
             })
-            ->select('entries.*', 'feeds.title as feed_title', 'feeds.url as feed_url')
+            ->select('entries.*', 'feeds.title as channel_title', 'feeds.url as channel_url')
             ->orderBy('entries.published_at', 'desc')
-            ->paginate($perPage, ['*'], 'unread_page', $unreadPage);
+            ->paginate($perPage, ['*'], 'unseen_page', $unseenPage);
 
-        $unreadEntries = $unreadPaginated->getCollection()->map(function ($entry) {
+        $unseenVideos = $unseenPaginated->getCollection()->map(function ($video) {
             return [
-                'id' => $entry->id,
-                'title' => $this->cleanUtf8($entry->title),
-                'content' => $this->cleanUtf8($entry->content),
-                'excerpt' => $this->cleanUtf8($entry->excerpt),
-                'url' => $entry->url,
-                'thumbnail_url' => $entry->thumbnail_url,
-                'author' => $this->cleanUtf8($entry->author),
-                'published_at' => $entry->published_at,
-                'feed' => [
-                    'id' => $entry->feed_id,
-                    'title' => $this->cleanUtf8($entry->feed_title),
-                    'url' => $entry->feed_url,
+                'id' => $video->id,
+                'title' => $this->cleanUtf8($video->title),
+                'content' => $this->cleanUtf8($video->content),
+                'excerpt' => $this->cleanUtf8($video->excerpt),
+                'url' => $video->url,
+                'thumbnail_url' => $video->thumbnail_url,
+                'author' => $this->cleanUtf8($video->author),
+                'published_at' => $video->published_at,
+                'channel' => [
+                    'id' => $video->feed_id,
+                    'title' => $this->cleanUtf8($video->channel_title),
+                    'url' => $video->channel_url,
                 ],
-                'is_read' => false,
+                'is_seen' => false,
                 'is_saved' => false,
-                'read_id' => null,
+                'seen_id' => null,
                 'saved_id' => null,
             ];
         });
 
-        $unreadPaginationData = [
-            'current_page' => $unreadPaginated->currentPage(),
-            'last_page' => $unreadPaginated->lastPage(),
-            'per_page' => $unreadPaginated->perPage(),
-            'total' => $unreadPaginated->total(),
-            'has_more' => $unreadPaginated->hasMorePages(),
+        $unseenPaginationData = [
+            'current_page' => $unseenPaginated->currentPage(),
+            'last_page' => $unseenPaginated->lastPage(),
+            'per_page' => $unseenPaginated->perPage(),
+            'total' => $unseenPaginated->total(),
+            'has_more' => $unseenPaginated->hasMorePages(),
         ];
 
         // Get saved entries with pagination
@@ -189,16 +188,16 @@ class DashboardController extends Controller
                 'entries.author',
                 'entries.published_at',
                 'entries.feed_id',
-                'feeds.title as feed_title',
-                'feeds.url as feed_url',
-                'user_entry_reads.id as read_id',
+                'feeds.title as channel_title',
+                'feeds.url as channel_url',
+                'user_entry_reads.id as seen_id',
                 'user_entry_reads.is_read',
                 'saved_items.id as saved_id',
             ])
             ->orderBy('saved_items.created_at', 'desc')
             ->paginate($perPage, ['*'], 'saved_page', $savedPage);
 
-        $savedEntries = $savedPaginated->getCollection()->map(function ($savedItem) {
+        $savedVideos = $savedPaginated->getCollection()->map(function ($savedItem) {
             return [
                 'id' => $savedItem->id,
                 'title' => $this->cleanUtf8($savedItem->title),
@@ -208,14 +207,14 @@ class DashboardController extends Controller
                 'thumbnail_url' => $savedItem->thumbnail_url,
                 'author' => $this->cleanUtf8($savedItem->author),
                 'published_at' => $savedItem->published_at,
-                'feed' => [
+                'channel' => [
                     'id' => $savedItem->feed_id,
-                    'title' => $this->cleanUtf8($savedItem->feed_title),
-                    'url' => $savedItem->feed_url,
+                    'title' => $this->cleanUtf8($savedItem->channel_title),
+                    'url' => $savedItem->channel_url,
                 ],
-                'is_read' => $savedItem->is_read ?? false,
+                'is_seen' => $savedItem->is_read ?? false,
                 'is_saved' => true,
-                'read_id' => $savedItem->read_id,
+                'seen_id' => $savedItem->seen_id,
                 'saved_id' => $savedItem->saved_id,
             ];
         });
@@ -230,39 +229,39 @@ class DashboardController extends Controller
 
         // Prepare pagination data
         $paginationData = [
-            'current_page' => $paginatedEntries->currentPage(),
-            'last_page' => $paginatedEntries->lastPage(),
-            'per_page' => $paginatedEntries->perPage(),
-            'total' => $paginatedEntries->total(),
-            'has_more' => $paginatedEntries->hasMorePages(),
+            'current_page' => $paginatedVideos->currentPage(),
+            'last_page' => $paginatedVideos->lastPage(),
+            'per_page' => $paginatedVideos->perPage(),
+            'total' => $paginatedVideos->total(),
+            'has_more' => $paginatedVideos->hasMorePages(),
         ];
 
         $stats = [
-            'totalFeeds' => $totalFeeds,
-            'unreadCount' => $unreadCount,
+            'totalChannels' => $totalChannels,
+            'unseenCount' => $unseenCount,
             'savedCount' => $savedCount,
         ];
 
-        $entries = [
-            'all' => $allEntries->values(),
-            'unread' => $unreadEntries,
-            'saved' => $savedEntries,
+        $videos = [
+            'all' => $allVideos->values(),
+            'unseen' => $unseenVideos,
+            'saved' => $savedVideos,
         ];
 
-        // Get categories for the feed form
+        // Get categories for the channel form
         $categories = $user->categories()->orderBy('sort_order')->get();
 
         // Get user's view preference
-        $entryViewMode = UserPreference::get($user->id, 'entry_view_mode', 'list');
+        $videoViewMode = UserPreference::get($user->id, 'video_view_mode', 'list');
 
         return inertia('Home', [
             'stats' => $stats,
-            'entries' => $entries,
+            'videos' => $videos,
             'pagination' => $paginationData,
-            'unreadPagination' => $unreadPaginationData,
+            'unseenPagination' => $unseenPaginationData,
             'savedPagination' => $savedPaginationData,
             'categories' => $categories,
-            'entryViewMode' => $entryViewMode,
+            'videoViewMode' => $videoViewMode,
         ]);
     }
 
@@ -308,7 +307,7 @@ class DashboardController extends Controller
         return back();
     }
 
-    public function markAsUnread(Request $request, Entry $entry)
+    public function markAsUnseen(Request $request, Entry $entry)
     {
         $user = Auth::user();
 

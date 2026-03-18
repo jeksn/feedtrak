@@ -54,16 +54,16 @@ class FetchFeedJob implements ShouldQueue
             // For new feeds, limit to 15 entries. For existing feeds, fetch all.
             $entryLimit = $isNewFeed ? 15 : null;
 
-            // Discover and parse the feed
-            $feedData = $feedService->discoverFeed($this->feedUrl, $entryLimit);
+            // Fetch YouTube channel data
+            $feedData = $feedService->fetchYouTubeChannel($this->feedUrl, $entryLimit);
 
             if (! $feedData) {
-                Log::warning('Feed discovery failed', ['url' => $this->feedUrl]);
+                Log::warning('YouTube channel fetch failed', ['url' => $this->feedUrl]);
 
                 return;
             }
 
-            Log::debug('Feed data discovered', [
+            Log::debug('YouTube channel data fetched', [
                 'title' => $feedData['title'] ?? 'Unknown',
                 'entries_count' => count($feedData['entries'] ?? []),
             ]);

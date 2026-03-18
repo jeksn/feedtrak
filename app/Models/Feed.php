@@ -17,6 +17,10 @@ class Feed extends Model
         'feed_url',
         'type',
         'icon_url',
+        'avatar_url',
+        'banner_url',
+        'subscriber_count',
+        'video_count',
         'last_fetched_at',
     ];
 

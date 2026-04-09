@@ -75,13 +75,13 @@ interface Category {
 }
 
 interface FeedListProps {
-    channels: Feed[];
+    sources: Feed[];
     categories: Category[];
     isLoading?: boolean;
 }
 
 export function FeedList({
-    channels: feeds,
+    sources: feeds,
     categories,
     isLoading = false,
 }: FeedListProps) {
@@ -92,7 +92,7 @@ export function FeedList({
     const [editingCategory, setEditingCategory] = useState<number | null>(null);
 
     const handleDeleteFeed = (feedId: number) => {
-        router.delete(`/channels/${feedId}`, {
+        router.delete(`/sources/${feedId}`, {
             onSuccess: () => {
                 setDeleteDialogOpen(null);
             },
@@ -105,7 +105,7 @@ export function FeedList({
     const handleRefreshFeed = (feedId: number) => {
         setIsRefreshing(feedId);
         router.post(
-            `/channels/${feedId}/refresh`,
+            `/sources/${feedId}/refresh`,
             {},
             {
                 onSuccess: () => {
@@ -122,7 +122,7 @@ export function FeedList({
     const handleMarkAllAsRead = (feedId?: number) => {
         if (feedId) {
             router.post(
-                `/channels/${feedId}/mark-all-seen`,
+                `/sources/${feedId}/mark-all-seen`,
                 {},
                 {
                     onSuccess: () => {
@@ -154,7 +154,7 @@ export function FeedList({
         const catId = categoryId === 'none' ? null : parseInt(categoryId);
 
         router.put(
-            `/channels/${feedId}/category`,
+            `/sources/${feedId}/category`,
             {
                 category_id: catId,
             },
@@ -255,7 +255,7 @@ export function FeedList({
                                             className="group inline-flex cursor-pointer items-center gap-2 font-medium transition-colors duration-200"
                                             onClick={() =>
                                                 router.visit(
-                                                    `/channels/${feed.id}`,
+                                                    `/sources/${feed.id}`,
                                                 )
                                             }
                                         >
@@ -345,7 +345,7 @@ export function FeedList({
                                             <DropdownMenuItem
                                                 onClick={() =>
                                                     router.visit(
-                                                        `/channels/${feed.id}`,
+                                                        `/sources/${feed.id}`,
                                                     )
                                                 }
                                             >
@@ -382,7 +382,7 @@ export function FeedList({
                                                 ) : (
                                                     <RefreshCw className="mr-2 h-4 w-4" />
                                                 )}
-                                                Refresh Feed
+                                                Refresh Source
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() =>
@@ -400,7 +400,7 @@ export function FeedList({
                                                 }
                                             >
                                                 <Trash2 className="mr-2 h-4 w-4" />
-                                                Delete Feed
+                                                Delete Source
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -418,7 +418,7 @@ export function FeedList({
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Feed</AlertDialogTitle>
+                        <AlertDialogTitle>Delete Source</AlertDialogTitle>
                         <AlertDialogDescription>
                             Are you sure you want to delete "
                             {

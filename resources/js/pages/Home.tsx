@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import AppLayout from '@/layouts/app-layout';
 import { dashboard } from '@/routes';
-import { type BseencrumbItem } from '@/types';
+import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import {
     Bookmark,
@@ -47,7 +47,7 @@ interface Video {
 interface DashboardProps {
     pageTitle?: string;
     stats: {
-        totalChannels: number;
+        totalChannells: number;
         unseenCount: number;
         savedCount: number;
     };
@@ -84,7 +84,7 @@ interface DashboardProps {
     videoViewMode: string;
 }
 
-const bseencrumbs: BseencrumbItem[] = [
+const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Home',
         href: dashboard().url,
@@ -149,7 +149,7 @@ export default function Home({
         );
     };
 
-    const handleRefreshAllChannels = () => {
+    const handleRefreshAllSources = () => {
         setIsRefreshingAll(true);
         router.post(
             '/videos/refresh-all',
@@ -159,7 +159,7 @@ export default function Home({
                     router.reload();
                 },
                 onError: (errors) => {
-                    console.error('Failed to refresh channels:', errors);
+                    console.error('Failed to refresh nhannells:', errors);
                 },
                 onFinish: () => {
                     setIsRefreshingAll(false);
@@ -310,7 +310,7 @@ export default function Home({
     };
 
     return (
-        <AppLayout bseencrumbs={bseencrumbs}>
+        <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Home" />
             <div className="container mx-auto space-y-6 px-6 py-6">
                 {/* Header */}
@@ -321,7 +321,7 @@ export default function Home({
                         </h1>
                         <p className="text-muted-foreground">
                             {pageTitle === 'Home'
-                                ? "Welcome back! Here's what's new in your channels."
+                                ? "Welcome back! Here's what's new in your sources."
                                 : `All your ${pageTitle.toLowerCase()} in one place.`}
                         </p>
                     </div>
@@ -329,7 +329,7 @@ export default function Home({
                         <Button
                             variant="outline"
                             size="sm"
-                            onClick={handleRefreshAllChannels}
+                            onClick={handleRefreshAllSources}
                             disabled={isRefreshingAll}
                             className="gap-2"
                         >
@@ -341,7 +341,7 @@ export default function Home({
                             ) : (
                                 <>
                                     <RefreshCw className="h-4 w-4" />
-                                    Refresh All Channels
+                                    Refresh All Sources
                                 </>
                             )}
                         </Button>

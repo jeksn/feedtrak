@@ -11,10 +11,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { ArrowLeft, CheckCheck, Loader2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, CheckCheck, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface Channel {
@@ -73,6 +83,7 @@ export default function ChannelDetail({
     const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
     const [videos, setVideos] = useState<Video[]>(initialVideos);
     const [unseenCount, setUnseenCount] = useState(channel.unseen_count);
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
     const handleCategoryChange = (categoryId: string) => {
         setIsUpdatingCategory(true);
@@ -84,7 +95,7 @@ export default function ChannelDetail({
                   : parseInt(categoryId);
 
         router.put(
-            `/channels/${channel.id}/category`,
+            `/sources/${channel.id}/category`,
             {
                 category_id: catId,
             },
@@ -105,7 +116,7 @@ export default function ChannelDetail({
     const handleRefresh = () => {
         setIsRefreshing(true);
         router.post(
-            `/channels/${channel.id}/refresh`,
+            `/sources/${channel.id}/refresh`,
             {},
             {
                 onSuccess: () => {
@@ -127,7 +138,7 @@ export default function ChannelDetail({
         setUnseenCount(0);
 
         router.post(
-            `/channels/${channel.id}/mark-all-seen`,
+            `/sources/${channel.id}/mark-all-seen`,
             {},
             {
                 onSuccess: () => {
@@ -163,14 +174,25 @@ export default function ChannelDetail({
         );
     };
 
+    const handleDeleteSource = () => {
+        router.delete(`/sources/${channel.id}`, {
+            onSuccess: () => {
+                router.visit('/sources');
+            },
+            onError: (errors) => {
+                console.error('Failed to delete source:', errors);
+            },
+        });
+    };
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
-            title: 'Channels',
-            href: '/channels',
+            title: 'Sources',
+            href: '/sources',
         },
         {
             title: channel.title,
-            href: `/channels/${channel.id}`,
+            href: `/sources/${channel.id}`,
         },
     ];
 
@@ -179,15 +201,7 @@ export default function ChannelDetail({
             <Head title={channel.title} />
             <div className="container mx-auto space-y-6 px-6 py-6">
                 {/* Header */}
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.visit('/channels')}
-                    >
-                        <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back to Sources
-                    </Button>
+                <div className="flex items-center justify-between">
                     <div className="flex-1">
                         <h1 className="text-3xl font-bold tracking-tight">
                             {channel.title}
@@ -196,6 +210,14 @@ export default function ChannelDetail({
                             {channel.description}
                         </p>
                     </div>
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setDeleteDialogOpen(true)}
+                    >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Source
+                    </Button>
                 </div>
 
                 {/* Channel Info Card */}
@@ -296,6 +318,30 @@ export default function ChannelDetail({
                     />
                 </div>
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog
+                open={deleteDialogOpen}
+                onOpenChange={(open) => !open && setDeleteDialogOpen(false)}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Source</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete "{channel.title}"? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteSource}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AppLayout>
     );
 }

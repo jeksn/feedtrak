@@ -197,7 +197,7 @@ export default function Categories({ categories }: CategoriesProps) {
                                                                     }
                                                                     onClick={() =>
                                                                         router.visit(
-                                                                            `/channels/${feed.id}`,
+                                                                            `/sources/${feed.id}`,
                                                                         )
                                                                     }
                                                                     className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

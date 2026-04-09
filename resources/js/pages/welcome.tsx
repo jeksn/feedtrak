@@ -15,7 +15,7 @@ export default function Welcome({
     const features = [
         {
             icon: Youtube,
-            title: "YouTube Channels",
+            title: "YouTube Sources",
             description: "Subscribe to any YouTube channel by URL. Track all their videos automatically."
         },
         {
@@ -91,7 +91,7 @@ export default function Welcome({
                             Your Universal Feed Manager
                         </h1>
                         <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-                            FeedTrak brings together all your content sources — YouTube channels, podcasts, RSS feeds, and more — into one unified timeline. Subscribe once, read everything in one place.
+                            FeedTrak brings together all your content sources — YouTube sources, podcasts, RSS feeds, and more — into one unified timeline. Subscribe once, read everything in one place.
                         </p>
                         <div className="flex items-center justify-center gap-4">
                             {auth.user ? (
@@ -137,7 +137,7 @@ export default function Welcome({
                                 </div>
                                 <h3 className="text-lg font-semibold mb-2">YouTube</h3>
                                 <p className="text-muted-foreground text-sm">
-                                    Subscribe to channels by URL. Track every video they upload.
+                                    Subscribe to sources by URL. Track every video they upload.
                                 </p>
                             </div>
                             <div className="p-6 rounded-xl border text-center">

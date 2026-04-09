@@ -10,7 +10,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { channels, dashboard, feeds, podcasts, videos } from '@/routes';
+import { sources, dashboard, feeds, podcasts, videos } from '@/routes';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import {
@@ -49,13 +49,8 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Sources',
-        href: channels(),
+        href: sources(),
         icon: Youtube,
-    },
-    {
-        title: 'Categories',
-        href: '/categories',
-        icon: Tag,
     },
     {
         title: 'Import',

@@ -212,15 +212,30 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'savedCount' => Auth::user()->savedItems()->count(),
         ];
 
-        return Inertia::render('Channels', [
+        return Inertia::render('Sources', [
             'channels' => $feeds,
             'categories' => $categories,
+            'categoriesWithFeeds' => $categories->map(function ($category) {
+                // Load feeds for this category through userFeeds
+                $category->load(['userFeeds.feed']);
+                $feeds = $category->userFeeds->map(function ($userFeed) {
+                    return [
+                        'id' => $userFeed->feed_id,
+                        'title' => $userFeed->feed->title ?? 'Untitled',
+                        'url' => $userFeed->feed->url,
+                    ];
+                })->toArray();
+
+                $category->feeds = $feeds;
+                $category->user_channels_count = count($feeds);
+                return $category;
+            }),
             'stats' => $stats,
         ]);
-    })->name('channels');
+    })->name('sources');
 
     // Feed detail route
-    Route::get('/channels/{feed}', function (Feed $feed) {
+    Route::get('/sources/{feed}', function (Feed $feed) {
         $userFeed = UserFeed::where([
             'user_id' => Auth::id(),
             'feed_id' => $feed->id,
@@ -295,7 +310,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $feed->title = html_entity_decode(mb_convert_encoding($feed->title ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $feed->description = html_entity_decode(mb_convert_encoding($feed->description ?? '', 'UTF-8', 'UTF-8'), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
-        return Inertia::render('ChannelDetail', [
+        return Inertia::render('SourceDetail', [
             'channel' => $feed,
             'videos' => $entries,
             'categories' => Auth::user()->categories()
@@ -307,11 +322,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('channels.show');
 
-    Route::post('/channels', function (Request $request) {
+    Route::post('/sources', function (Request $request) {
         $validated = $request->validate([
             'url' => 'required|url',
             'category_id' => 'nullable|exists:categories,id',
+            'new_category' => 'nullable|string|max:50',
         ]);
+
+        $categoryId = $validated['category_id'] ?? null;
+
+        // If new_category is provided, create it
+        if (!empty($validated['new_category'])) {
+            $category = \App\Models\Category::firstOrCreate(
+                [
+                    'user_id' => Auth::id(),
+                    'name' => trim($validated['new_category']),
+                ],
+                ['sort_order' => 0]
+            );
+            $categoryId = $category->id;
+        }
 
         // Check if user already subscribed to this feed
         $existingFeed = Feed::where('feed_url', $validated['url'])
@@ -326,7 +356,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
             if ($existingSubscription) {
                 return back()->withErrors([
-                    'url' => 'You are already subscribed to this channel',
+                    'url' => 'You are already subscribed to this source',
                 ]);
             }
         }
@@ -335,13 +365,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
         \App\Jobs\FetchFeedJob::dispatch(
             $validated['url'],
             Auth::id(),
-            $validated['category_id'] ?? null
+            $categoryId
         );
 
         return back()->with('success', 'Channel is being processed. It will appear in your channels shortly.');
     });
 
-    Route::delete('/channels/{feed}', function (Feed $feed) {
+    Route::delete('/sources/{feed}', function (Feed $feed) {
         $userFeed = UserFeed::where([
             'user_id' => Auth::id(),
             'feed_id' => $feed->id,
@@ -352,7 +382,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return back()->with('success', 'Channel removed successfully.');
     });
 
-    Route::put('/channels/{feed}/category', function (Feed $feed, Request $request) {
+    Route::put('/sources/{feed}/category', function (Feed $feed, Request $request) {
         $userFeed = UserFeed::where([
             'user_id' => Auth::id(),
             'feed_id' => $feed->id,
@@ -381,10 +411,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'category_id' => $categoryId,
         ]);
 
-        return back()->with('success', 'Channel category updated successfully.');
+        return back()->with('success', 'Source category updated successfully.');
     });
 
-    Route::post('/channels/{feed}/refresh', function (Feed $feed) {
+    Route::post('/sources/{feed}/refresh', function (Feed $feed) {
         UserFeed::where([
             'user_id' => Auth::id(),
             'feed_id' => $feed->id,
@@ -393,10 +423,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Dispatch job to refresh feed
         \App\Jobs\FetchFeedJob::dispatch($feed->feed_url);
 
-        return back()->with('success', 'Channel refresh has been queued.');
+        return back()->with('success', 'Source refresh has been queued.');
     });
 
-    Route::post('/channels/{feed}/mark-all-seen', function (Feed $feed) {
+    Route::post('/sources/{feed}/mark-all-seen', function (Feed $feed) {
         UserFeed::where([
             'user_id' => Auth::id(),
             'feed_id' => $feed->id,
@@ -452,9 +482,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $refreshedCount = $feedsToRefresh->count();
         $skippedCount = $feeds->count() - $refreshedCount;
 
-        $message = "Queued {$refreshedCount} channel(s) for refresh.";
+        $message = "Queued {$refreshedCount} source(s) for refresh.";
         if ($skippedCount > 0) {
-            $message .= " Skipped {$skippedCount} recently updated channel(s).";
+            $message .= " Skipped {$skippedCount} recently updated source(s).";
         }
 
         return back()->with('success', $message);

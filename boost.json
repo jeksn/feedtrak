@@ -1,8 +1,10 @@
 {
     "agents": [
+        "opencode",
         "windsurf"
     ],
     "editors": [
+        "opencode",
         "windsurf"
     ],
     "guidelines": [

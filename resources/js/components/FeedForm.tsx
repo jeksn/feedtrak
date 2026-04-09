@@ -118,15 +118,14 @@ export function FeedForm({ categories }: FeedFormProps) {
       <DialogTrigger asChild>
         <Button>
           <Plus className="h-4 w-4 mr-2" />
-          Add Channel
+          Add Feed
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add YouTube Channel</DialogTitle>
+          <DialogTitle>Add Feed</DialogTitle>
           <DialogDescription>
-            Subscribe to a YouTube channel to track its latest videos. Enter the channel URL
-            (e.g., youtube.com/@channelname or youtube.com/channel/CHANNEL_ID).
+            Add a YouTube channel, RSS feed, or podcast to track content. Enter the feed URL to get started.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -136,15 +135,15 @@ export function FeedForm({ categories }: FeedFormProps) {
               name="url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Channel URL</FormLabel>
+                  <FormLabel>Feed URL</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="https://www.youtube.com/@channelname"
+                      placeholder="https://www.youtube.com/@channelname or https://example.com/feed.xml"
                       {...field}
                     />
                   </FormControl>
                   <FormDescription>
-                    Enter a YouTube channel URL (e.g., youtube.com/@channelname or youtube.com/channel/CHANNEL_ID)
+                    Enter a YouTube channel URL, RSS feed, or podcast feed
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -172,7 +171,7 @@ export function FeedForm({ categories }: FeedFormProps) {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Organize your channels into categories
+                    Organize your feeds into categories
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -186,7 +185,7 @@ export function FeedForm({ categories }: FeedFormProps) {
                     Adding...
                   </>
                 ) : (
-                  "Add Channel"
+                  "Add Feed"
                 )}
               </Button>
             </DialogFooter>

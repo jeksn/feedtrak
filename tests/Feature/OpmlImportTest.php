@@ -3,6 +3,7 @@
 use App\Models\Category;
 use App\Models\Feed;
 use App\Models\User;
+use App\Models\UserFeed;
 use App\Services\OpmlService;
 use Illuminate\Http\UploadedFile;
 
@@ -87,7 +88,7 @@ test('OPML import skips already subscribed feeds', function () {
         'feed_url' => 'https://localhost/feed1.xml',
     ]);
 
-    \App\Models\UserFeed::create([
+    UserFeed::create([
         'user_id' => $user->id,
         'feed_id' => $existingFeed->id,
     ]);

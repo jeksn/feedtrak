@@ -13,8 +13,9 @@ class UserFeed extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new UserScope());
+        static::addGlobalScope(new UserScope);
     }
+
     protected $fillable = [
         'user_id',
         'feed_id',

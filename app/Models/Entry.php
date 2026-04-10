@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Entry extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'feed_id',
         'guid',

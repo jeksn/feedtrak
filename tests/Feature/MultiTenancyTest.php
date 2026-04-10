@@ -7,7 +7,6 @@ use App\Models\SavedItem;
 use App\Models\User;
 use App\Models\UserEntryRead;
 use App\Models\UserFeed;
-use Illuminate\Support\Facades\DB;
 
 test('users can only see their own categories', function () {
     $user1 = User::factory()->create();
@@ -138,14 +137,14 @@ test('entries are shared between users through feeds', function () {
     UserFeed::factory()->create(['user_id' => $user1->id, 'feed_id' => $feed->id]);
     UserFeed::factory()->create(['user_id' => $user2->id, 'feed_id' => $feed->id]);
 
-    $user1Entries = \App\Models\Entry::query()
+    $user1Entries = Entry::query()
         ->whereHas('feed.userFeeds', function ($query) use ($user1) {
             $query->where('user_id', $user1->id);
         })
         ->where('id', $entry->id)
         ->count();
 
-    $user2Entries = \App\Models\Entry::query()
+    $user2Entries = Entry::query()
         ->whereHas('feed.userFeeds', function ($query) use ($user2) {
             $query->where('user_id', $user2->id);
         })

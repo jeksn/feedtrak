@@ -45,7 +45,7 @@ class FetchFeedJob implements ShouldQueue
                 'attempt' => $this->attempts(),
             ]);
 
-            $existingFeed = \App\Models\Feed::where('feed_url', $this->feedUrl)->first();
+            $existingFeed = Feed::where('feed_url', $this->feedUrl)->first();
             $isNewFeed = ! $existingFeed;
 
             $entryLimit = $isNewFeed ? 15 : null;

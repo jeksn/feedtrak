@@ -13,8 +13,9 @@ class SavedItem extends Model
 
     protected static function booted(): void
     {
-        static::addGlobalScope(new UserScope());
+        static::addGlobalScope(new UserScope);
     }
+
     protected $fillable = [
         'user_id',
         'entry_id',

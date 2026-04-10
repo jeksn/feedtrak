@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\FetchFeedJob;
 use App\Models\Entry;
 use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 use App\Models\UserPreference;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -24,7 +24,7 @@ class DashboardController extends Controller
             ->get();
 
         foreach ($staleChannels as $feed) {
-            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
+            FetchFeedJob::dispatch($feed->feed_url)->onQueue('feeds');
         }
 
         // Get stats - filtered by type if specified
@@ -110,6 +110,7 @@ class DashboardController extends Controller
 
         $unseenVideos = $unseenPaginated->getCollection()->map(function ($entry) {
             $savedItem = $entry->savedItems->first();
+
             return [
                 'id' => $entry->id,
                 'title' => $this->cleanUtf8($entry->title),
@@ -152,6 +153,7 @@ class DashboardController extends Controller
         $savedVideos = $savedPaginated->getCollection()->map(function ($savedItem) {
             $entry = $savedItem->entry;
             $entryRead = $entry->entryReads->first();
+
             return [
                 'id' => $entry->id,
                 'title' => $this->cleanUtf8($entry->title),

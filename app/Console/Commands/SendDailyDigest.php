@@ -6,6 +6,7 @@ use App\Models\Entry;
 use App\Models\Feed;
 use App\Models\User;
 use App\Notifications\DailyDigestNotification;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 
@@ -44,7 +45,7 @@ class SendDailyDigest extends Command
         try {
             // Get the last time we notified this user (or default to 2 days ago)
             $since = $user->last_notified_at
-                ? \Carbon\Carbon::parse($user->last_notified_at)->subDay()
+                ? Carbon::parse($user->last_notified_at)->subDay()
                 : now()->subDays(2);
 
             // Get all feeds this user is subscribed to

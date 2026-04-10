@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Jobs\FetchEntryThumbnail;
 use App\Models\Entry;
 use App\Models\Feed;
+use App\Models\User;
+use App\Notifications\NewVideoNotification;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use SimpleXMLElement;
@@ -622,13 +624,13 @@ class FeedService
     private function notifyUsersOfNewVideos(Feed $feed, array $newVideos): void
     {
         // Get all users subscribed to this channel who have email notifications enabled
-        $users = \App\Models\User::whereHas('userFeeds', function ($query) use ($feed) {
+        $users = User::whereHas('userFeeds', function ($query) use ($feed) {
             $query->where('feed_id', $feed->id)->where('is_active', true);
         })->where('email_notifications_enabled', true)->get();
 
         foreach ($users as $user) {
             foreach ($newVideos as $video) {
-                $user->notify(new \App\Notifications\NewVideoNotification($feed, $video));
+                $user->notify(new NewVideoNotification($feed, $video));
             }
         }
     }

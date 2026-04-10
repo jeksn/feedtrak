@@ -6,6 +6,7 @@ use App\Models\Entry;
 use App\Models\Feed;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -14,7 +15,7 @@ class DailyDigestNotification extends Notification implements ShouldQueue
     use Queueable;
 
     /**
-     * @param  array<int, array{feed: Feed, entries: \Illuminate\Database\Eloquent\Collection<int, Entry>}>  $feedUpdates
+     * @param  array<int, array{feed: Feed, entries: Collection<int, Entry>}>  $feedUpdates
      */
     public function __construct(
         public array $feedUpdates,

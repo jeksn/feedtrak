@@ -161,6 +161,7 @@ class ContentTypeController extends Controller
         $allVideos = $allPaginated->getCollection()->map(function ($entry) {
             $entryRead = $entry->entryReads->first();
             $savedItem = $entry->savedItems->first();
+
             return [
                 'id' => $entry->id,
                 'title' => $this->cleanUtf8($entry->title),
@@ -195,6 +196,7 @@ class ContentTypeController extends Controller
         $savedVideos = $savedPaginated->getCollection()->map(function ($savedItem) {
             $entry = $savedItem->entry;
             $entryRead = $entry->entryReads->first();
+
             return [
                 'id' => $entry->id,
                 'title' => $this->cleanUtf8($entry->title),

@@ -7,6 +7,7 @@ use App\Http\Requests\OpmlImportRequest;
 use App\Services\OpmlService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,13 +24,13 @@ class OpmlImportController extends Controller
         $file = $request->file('opml_file');
         $content = file_get_contents($file->getRealPath());
 
-        \Illuminate\Support\Facades\Log::info('Starting OPML import', ['user_id' => Auth::id(), 'content_length' => strlen($content)]);
+        Log::info('Starting OPML import', ['user_id' => Auth::id(), 'content_length' => strlen($content)]);
 
         $opmlService = app(OpmlService::class);
 
         try {
             $parsed = $opmlService->parseOpml($content);
-            \Illuminate\Support\Facades\Log::info('OPML parsed', ['feeds_count' => count($parsed['feeds']), 'categories_count' => count($parsed['categories'])]);
+            Log::info('OPML parsed', ['feeds_count' => count($parsed['feeds']), 'categories_count' => count($parsed['categories'])]);
 
             $result = $opmlService->importOpml($content, Auth::id());
 
@@ -46,7 +47,7 @@ class OpmlImportController extends Controller
 
             return back()->with('success', $message);
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('OPML import failed', ['error' => $e->getMessage()]);
+            Log::error('OPML import failed', ['error' => $e->getMessage()]);
 
             return back()->withErrors(['file' => $e->getMessage()]);
         }

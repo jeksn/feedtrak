@@ -2,8 +2,11 @@
 
 use App\Jobs\FetchFeedJob;
 use App\Models\Category;
+use App\Models\Entry;
 use App\Models\Feed;
+use App\Models\SavedItem;
 use App\Models\User;
+use App\Models\UserEntryRead;
 use App\Models\UserFeed;
 use App\Services\FeedService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -24,42 +27,42 @@ beforeEach(function () {
 
 describe('Feed Type Detection', function () {
     test('detects YouTube URLs correctly', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         // Test that YouTube URLs are detected (returns data when fetch succeeds)
         Http::fake([
             '*youtube.com/@*' => Http::response(sampleYouTubePage(), 200),
             '*youtube.com/feeds/videos.xml*' => Http::response(sampleYouTubeFeed(), 200),
         ]);
-        
+
         $result = $service->fetchYouTubeChannel('https://www.youtube.com/@testchannel');
         expect($result)->toBeArray();
         expect($result['title'])->toBe('Test YouTube Channel');
-        
+
         Http::preventStrayRequests();
     });
-    
+
     test('detects RSS/Atom feeds correctly', function () {
         Http::fake([
             '*' => Http::response(sampleRssFeed(), 200),
         ]);
-        
-        $service = new FeedService();
+
+        $service = new FeedService;
         $result = $service->fetchRssFeed('https://example.com/feed.xml');
-        
+
         expect($result)->toBeArray();
         expect($result['title'])->toBe('Test Blog');
         expect($result['entries'])->toHaveCount(1);
     });
-    
+
     test('detects podcast feeds with enclosures', function () {
         Http::fake([
             '*' => Http::response(samplePodcastFeed(), 200),
         ]);
-        
-        $service = new FeedService();
+
+        $service = new FeedService;
         $result = $service->fetchRssFeed('https://example.com/podcast.xml');
-        
+
         expect($result)->toBeArray();
         expect($result['title'])->toBe('Test Podcast');
     });
@@ -72,62 +75,62 @@ describe('Feed Type Detection', function () {
 describe('Feed Creation via API', function () {
     test('can dispatch feed creation job via POST /channels', function () {
         Queue::fake();
-        
+
         $response = $this->post('/channels', [
             'url' => 'https://www.youtube.com/@testchannel',
         ]);
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         Queue::assertPushed(FetchFeedJob::class, function ($job) {
             return $job->feedUrl === 'https://www.youtube.com/@testchannel'
                 && $job->userId === $this->user->id;
         });
     });
-    
+
     test('can create feed with category', function () {
         Queue::fake();
         $category = Category::factory()->create(['user_id' => $this->user->id]);
-        
+
         $response = $this->post('/channels', [
             'url' => 'https://example.com/feed.xml',
             'category_id' => $category->id,
         ]);
-        
+
         $response->assertRedirect();
-        
+
         Queue::assertPushed(FetchFeedJob::class, function ($job) use ($category) {
             return $job->categoryId === $category->id;
         });
     });
-    
+
     test('prevents duplicate subscription to same feed', function () {
         $feed = Feed::factory()->create(['feed_url' => 'https://example.com/feed.xml']);
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->post('/channels', [
             'url' => 'https://example.com/feed.xml',
         ]);
-        
+
         $response->assertRedirect();
         $response->assertSessionHasErrors(['url']);
     });
-    
+
     test('validates URL format', function () {
         $response = $this->post('/channels', [
             'url' => 'not-a-valid-url',
         ]);
-        
+
         $response->assertSessionHasErrors(['url']);
     });
-    
+
     test('requires URL field', function () {
         $response = $this->post('/channels', []);
-        
+
         $response->assertSessionHasErrors(['url']);
     });
 });
@@ -138,8 +141,8 @@ describe('Feed Creation via API', function () {
 
 describe('FeedService', function () {
     test('creates or updates feed from data', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         $feedData = [
             'title' => 'Test Feed',
             'description' => 'Test Description',
@@ -149,18 +152,18 @@ describe('FeedService', function () {
             'content_type' => 'rss',
             'entries' => [],
         ];
-        
+
         $feed = $service->createOrUpdateFeed($feedData);
-        
+
         expect($feed)->toBeInstanceOf(Feed::class);
         expect($feed->title)->toBe('Test Feed');
         expect($feed->feed_url)->toBe('https://example.com/feed.xml');
     });
-    
+
     test('creates entries from feed data', function () {
         $feed = Feed::factory()->create();
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         $entries = [
             [
                 'title' => 'Entry 1',
@@ -179,19 +182,19 @@ describe('FeedService', function () {
                 'published_at' => now()->subDay()->toISOString(),
             ],
         ];
-        
+
         $service->createEntries($feed, $entries);
-        
+
         expect($feed->entries)->toHaveCount(2);
         $titles = $feed->entries->pluck('title')->toArray();
         expect($titles)->toContain('Entry 1');
         expect($titles)->toContain('Entry 2');
     });
-    
+
     test('updates existing entries instead of duplicating', function () {
         $feed = Feed::factory()->create();
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         // First creation
         $service->createEntries($feed, [
             [
@@ -201,7 +204,7 @@ describe('FeedService', function () {
                 'published_at' => now()->toISOString(),
             ],
         ]);
-        
+
         // Second creation with same URL - should update
         $service->createEntries($feed, [
             [
@@ -211,7 +214,7 @@ describe('FeedService', function () {
                 'published_at' => now()->toISOString(),
             ],
         ]);
-        
+
         expect($feed->entries)->toHaveCount(1);
         expect($feed->entries->first()->title)->toBe('Updated Title');
     });
@@ -224,72 +227,72 @@ describe('FeedService', function () {
 describe('FetchFeedJob', function () {
     test('job dispatches for feed processing', function () {
         Queue::fake();
-        
+
         FetchFeedJob::dispatch('https://example.com/feed.xml', $this->user->id);
-        
+
         Queue::assertPushed(FetchFeedJob::class);
     });
-    
+
     test('job handles YouTube URLs', function () {
         Http::fake([
             '*youtube.com/@*' => Http::response(sampleYouTubePage(), 200),
             '*youtube.com/feeds/videos.xml*' => Http::response(sampleYouTubeFeed(), 200),
         ]);
-        
+
         $job = new FetchFeedJob('https://www.youtube.com/@testchannel', $this->user->id);
-        $job->handle(new FeedService());
-        
+        $job->handle(new FeedService);
+
         // Feed should be created
         expect(Feed::count())->toBe(1);
     });
-    
+
     test('job handles RSS feed URLs', function () {
         Http::fake([
             '*' => Http::response(sampleRssFeed(), 200),
         ]);
-        
+
         $job = new FetchFeedJob('https://example.com/feed.xml', $this->user->id);
-        $job->handle(new FeedService());
-        
+        $job->handle(new FeedService);
+
         expect(Feed::count())->toBe(1);
         expect(Feed::first()->title)->toBe('Test Blog');
     });
-    
+
     test('job creates user subscription when user_id provided', function () {
         Http::fake([
             '*' => Http::response(sampleRssFeed(), 200),
         ]);
-        
+
         $job = new FetchFeedJob('https://example.com/feed.xml', $this->user->id);
-        $job->handle(new FeedService());
-        
+        $job->handle(new FeedService);
+
         expect(UserFeed::where('user_id', $this->user->id)->exists())->toBeTrue();
     });
-    
+
     test('job marks entries as unread for new subscription', function () {
         Http::fake([
             '*' => Http::response(sampleRssFeed(), 200),
         ]);
-        
+
         $job = new FetchFeedJob('https://example.com/feed.xml', $this->user->id);
-        $job->handle(new FeedService());
-        
+        $job->handle(new FeedService);
+
         $feed = Feed::first();
         expect($feed->entries)->toHaveCount(1);
     });
-    
+
     test('job handles connection failures gracefully', function () {
         Http::fake([
             '*' => function () {
                 throw new ConnectionException('Connection failed');
             },
         ]);
-        
+
         $job = new FetchFeedJob('https://example.com/feed.xml', $this->user->id);
-        
+
         // Should not throw, just return null
-        $job->handle(new FeedService());
-        
+        $job->handle(new FeedService);
+
         expect(Feed::count())->toBe(0);
     });
 });
@@ -300,35 +303,35 @@ describe('FetchFeedJob', function () {
 
 describe('RSS/Atom Feed Parsing', function () {
     test('parses RSS 2.0 feeds correctly', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         Http::fake([
             '*' => Http::response(sampleRssFeed(), 200),
         ]);
         $result = $service->parseFeed('https://example.com/feed.xml');
-        
+
         expect($result['title'])->toBe('Test Blog');
         expect($result['description'])->toBe('A test blog');
         expect($result['entries'])->toHaveCount(1);
         expect($result['entries'][0]['title'])->toBe('Test Entry');
     });
-    
+
     test('parses Atom feeds correctly', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         Http::fake([
             '*' => Http::response(sampleAtomFeed(), 200),
         ]);
         $result = $service->parseFeed('https://example.com/atom.xml');
-        
+
         expect($result['title'])->toBe('Test Atom Feed');
         expect($result['entries'])->toHaveCount(1);
         expect($result['entries'][0]['title'])->toBe('Atom Entry');
     });
-    
+
     test('extracts thumbnails from media namespace', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         $feed = '<?xml version="1.0"?>
         <rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
             <channel>
@@ -339,20 +342,20 @@ describe('RSS/Atom Feed Parsing', function () {
                 </item>
             </channel>
         </rss>';
-        
+
         Http::fake([
             '*' => Http::response($feed, 200),
         ]);
         $result = $service->parseFeed('https://example.com/feed.xml');
-        
+
         // The media namespace thumbnail extraction depends on SimpleXML namespace handling
         // which may vary by PHP version. This test verifies the entry was parsed.
         expect($result['entries'][0]['title'])->toBe('Entry with Thumbnail');
     });
-    
+
     test('extracts thumbnails from itunes namespace', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         $feed = '<?xml version="1.0"?>
         <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
             <channel>
@@ -363,36 +366,36 @@ describe('RSS/Atom Feed Parsing', function () {
                 </item>
             </channel>
         </rss>';
-        
+
         Http::fake([
             '*' => Http::response($feed, 200),
         ]);
         $result = $service->parseFeed('https://example.com/podcast.xml');
-        
+
         // Verify the feed was parsed successfully
         expect($result['title'])->toBe('Podcast');
         expect($result['entries'][0]['title'])->toBe('Episode 1');
     });
-    
+
     test('handles malformed XML gracefully', function () {
-        $service = new FeedService();
-        
+        $service = new FeedService;
+
         Http::fake([
             '*' => Http::response('not valid xml', 200),
         ]);
         $result = $service->parseFeed('https://example.com/feed.xml');
-        
+
         expect($result)->toBeNull();
     });
-    
+
     test('limits entries based on entryLimit parameter', function () {
         Http::fake([
             '*' => Http::response(sampleRssFeedWithManyEntries(20), 200),
         ]);
-        
-        $service = new FeedService();
+
+        $service = new FeedService;
         $result = $service->fetchRssFeed('https://example.com/feed.xml', 5);
-        
+
         expect($result['entries'])->toHaveCount(5);
     });
 });
@@ -406,71 +409,71 @@ describe('Category Management', function () {
         $response = $this->post('/categories', [
             'name' => 'Tech Blogs',
         ]);
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         expect($this->user->categories)->toHaveCount(1);
         expect($this->user->categories->first()->name)->toBe('Tech Blogs');
     });
-    
+
     test('validates category name', function () {
         $response = $this->post('/categories', [
             'name' => '',
         ]);
-        
+
         $response->assertSessionHasErrors(['name']);
     });
-    
+
     test('can update category', function () {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
-        
+
         $response = $this->put("/categories/{$category->id}", [
             'name' => 'Updated Name',
         ]);
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         expect($category->fresh()->name)->toBe('Updated Name');
     });
-    
+
     test('cannot update other users category', function () {
         $otherUser = User::factory()->create();
         $category = Category::factory()->create(['user_id' => $otherUser->id]);
-        
+
         $response = $this->put("/categories/{$category->id}", [
             'name' => 'Updated Name',
         ]);
-        
+
         $response->assertForbidden();
     });
-    
+
     test('can delete category', function () {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
-        
+
         $response = $this->delete("/categories/{$category->id}");
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         expect(Category::find($category->id))->toBeNull();
     });
-    
+
     test('cannot delete Podcasts category', function () {
         $category = Category::factory()->create([
             'user_id' => $this->user->id,
             'name' => 'Podcasts',
         ]);
-        
+
         $response = $this->delete("/categories/{$category->id}");
-        
+
         $response->assertRedirect();
         $response->assertSessionHasErrors();
-        
+
         expect(Category::find($category->id))->not->toBeNull();
     });
-    
+
     test('deleting category moves feeds to uncategorized', function () {
         $category = Category::factory()->create(['user_id' => $this->user->id]);
         $feed = Feed::factory()->create();
@@ -479,9 +482,9 @@ describe('Category Management', function () {
             'feed_id' => $feed->id,
             'category_id' => $category->id,
         ]);
-        
+
         $this->delete("/categories/{$category->id}");
-        
+
         expect(UserFeed::first()->category_id)->toBeNull();
     });
 });
@@ -497,9 +500,9 @@ describe('Channel Management', function () {
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->get('/channels');
-        
+
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('Channels')
@@ -508,16 +511,16 @@ describe('Channel Management', function () {
             ->has('stats')
         );
     });
-    
+
     test('can view channel detail', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->get("/channels/{$feed->id}");
-        
+
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('ChannelDetail')
@@ -525,7 +528,7 @@ describe('Channel Management', function () {
             ->has('videos')
         );
     });
-    
+
     test('cannot view other users channel detail', function () {
         $otherUser = User::factory()->create();
         $feed = Feed::factory()->create();
@@ -533,27 +536,27 @@ describe('Channel Management', function () {
             'user_id' => $otherUser->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->get("/channels/{$feed->id}");
-        
+
         $response->assertNotFound();
     });
-    
+
     test('can remove channel subscription', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->delete("/channels/{$feed->id}");
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         expect(UserFeed::where('user_id', $this->user->id)->exists())->toBeFalse();
     });
-    
+
     test('can update channel category', function () {
         $feed = Feed::factory()->create();
         $userFeed = UserFeed::factory()->create([
@@ -562,51 +565,51 @@ describe('Channel Management', function () {
             'category_id' => null,
         ]);
         $category = Category::factory()->create(['user_id' => $this->user->id]);
-        
+
         $response = $this->put("/channels/{$feed->id}/category", [
             'category_id' => $category->id,
         ]);
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         expect($userFeed->fresh()->category_id)->toBe($category->id);
     });
-    
+
     test('can mark all channel entries as seen', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+
         $response = $this->post("/channels/{$feed->id}/mark-all-seen");
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
-        expect(\App\Models\UserEntryRead::where([
+
+        expect(UserEntryRead::where([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
             'is_read' => true,
         ])->exists())->toBeTrue();
     });
-    
+
     test('can queue channel refresh', function () {
         Queue::fake();
-        
+
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->post("/channels/{$feed->id}/refresh");
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
+
         Queue::assertPushed(FetchFeedJob::class);
     });
 });
@@ -622,83 +625,83 @@ describe('Entry Management', function () {
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+
         $response = $this->post("/videos/{$entry->id}/seen");
-        
+
         $response->assertRedirect();
-        
-        expect(\App\Models\UserEntryRead::where([
+
+        expect(UserEntryRead::where([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
             'is_read' => true,
         ])->exists())->toBeTrue();
     });
-    
+
     test('can mark entry as unseen', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        \App\Models\UserEntryRead::factory()->create([
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+        UserEntryRead::factory()->create([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
             'is_read' => true,
         ]);
-        
+
         $response = $this->delete("/videos/{$entry->id}/seen");
-        
+
         $response->assertRedirect();
-        
-        expect(\App\Models\UserEntryRead::where([
+
+        expect(UserEntryRead::where([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
             'is_read' => false,
         ])->exists())->toBeTrue();
     });
-    
+
     test('can save entry', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+
         $response = $this->post("/videos/{$entry->id}/save");
-        
+
         $response->assertRedirect();
-        
-        expect(\App\Models\SavedItem::where([
+
+        expect(SavedItem::where([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
         ])->exists())->toBeTrue();
     });
-    
+
     test('can unsave entry', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        \App\Models\SavedItem::factory()->create([
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+        SavedItem::factory()->create([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
         ]);
-        
+
         $response = $this->delete("/videos/{$entry->id}/save");
-        
+
         $response->assertRedirect();
-        
-        expect(\App\Models\SavedItem::where([
+
+        expect(SavedItem::where([
             'user_id' => $this->user->id,
             'entry_id' => $entry->id,
         ])->exists())->toBeFalse();
     });
-    
+
     test('cannot access entries from unsubscribed feeds', function () {
         $otherUser = User::factory()->create();
         $feed = Feed::factory()->create();
@@ -706,27 +709,27 @@ describe('Entry Management', function () {
             'user_id' => $otherUser->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+
         $response = $this->post("/videos/{$entry->id}/seen");
-        
+
         $response->assertForbidden();
     });
-    
+
     test('can mark all entries as seen from dashboard', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        $entry = \App\Models\Entry::factory()->create(['feed_id' => $feed->id]);
-        
+        $entry = Entry::factory()->create(['feed_id' => $feed->id]);
+
         $response = $this->post('/videos/mark-all-seen');
-        
+
         $response->assertRedirect();
         $response->assertSessionHas('success');
-        
-        expect(\App\Models\UserEntryRead::where([
+
+        expect(UserEntryRead::where([
             'user_id' => $this->user->id,
             'is_read' => true,
         ])->exists())->toBeTrue();
@@ -740,7 +743,7 @@ describe('Entry Management', function () {
 describe('Dashboard & Content Types', function () {
     test('can view dashboard', function () {
         $response = $this->get('/app');
-        
+
         $response->assertOk();
         $response->assertInertia(fn ($page) => $page
             ->component('Home')
@@ -749,34 +752,34 @@ describe('Dashboard & Content Types', function () {
             ->has('pagination')
         );
     });
-    
+
     test('can filter by content type - videos', function () {
         $response = $this->get('/videos');
-        
+
         $response->assertOk();
     });
-    
+
     test('can filter by content type - feeds', function () {
         $response = $this->get('/feeds');
-        
+
         $response->assertOk();
     });
-    
+
     test('can filter by content type - podcasts', function () {
         $response = $this->get('/podcasts');
-        
+
         $response->assertOk();
     });
-    
+
     test('dashboard shows correct stats', function () {
         $feed = Feed::factory()->create();
         UserFeed::factory()->create([
             'user_id' => $this->user->id,
             'feed_id' => $feed->id,
         ]);
-        
+
         $response = $this->get('/app');
-        
+
         $response->assertInertia(fn ($page) => $page
             ->where('stats.totalChannels', 1)
         );
@@ -799,7 +802,7 @@ function sampleRssFeed(): string
                 <title>Test Entry</title>
                 <description>Test content</description>
                 <link>https://example.com/entry-1</link>
-                <pubDate>' . now()->toRfc2822String() . '</pubDate>
+                <pubDate>'.now()->toRfc2822String().'</pubDate>
                 <guid>https://example.com/entry-1</guid>
             </item>
         </channel>
@@ -816,7 +819,7 @@ function sampleAtomFeed(): string
             <title>Atom Entry</title>
             <content>Atom content</content>
             <link href="https://example.com/atom-entry"/>
-            <published>' . now()->toISOString() . '</published>
+            <published>'.now()->toISOString().'</published>
             <id>https://example.com/atom-entry</id>
         </entry>
     </feed>';
@@ -832,7 +835,7 @@ function samplePodcastFeed(): string
             <item>
                 <title>Episode 1</title>
                 <enclosure url="https://example.com/ep1.mp3" type="audio/mpeg" length="12345" />
-                <pubDate>' . now()->toRfc2822String() . '</pubDate>
+                <pubDate>'.now()->toRfc2822String().'</pubDate>
             </item>
         </channel>
     </rss>';
@@ -858,7 +861,7 @@ function sampleYouTubeFeed(): string
         <entry>
             <title>YouTube Video</title>
             <link href="https://www.youtube.com/watch?v=test123"/>
-            <published>' . now()->toISOString() . '</published>
+            <published>'.now()->toISOString().'</published>
             <media:group>
                 <media:thumbnail url="https://img.youtube.com/vi/test123/maxresdefault.jpg" />
             </media:group>
@@ -874,17 +877,17 @@ function sampleRssFeedWithManyEntries(int $count): string
             <item>
                 <title>Entry {$i}</title>
                 <link>https://example.com/entry-{$i}</link>
-                <pubDate>" . now()->subDays($i)->toRfc2822String() . "</pubDate>
-            </item>";
+                <pubDate>".now()->subDays($i)->toRfc2822String().'</pubDate>
+            </item>';
     }
-    
+
     return '<?xml version="1.0" encoding="UTF-8"?>
     <rss version="2.0">
         <channel>
             <title>Many Entries Blog</title>
             <description>A blog with many entries</description>
             <link>https://example.com</link>
-            ' . $items . '
+            '.$items.'
         </channel>
     </rss>';
 }

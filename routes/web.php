@@ -1,13 +1,17 @@
 <?php
 
+use App\Http\Controllers\ContentTypeController;
 use App\Http\Controllers\DashboardController;
+use App\Jobs\FetchFeedJob;
+use App\Models\Category;
+use App\Models\Entry;
 use App\Models\Feed;
 use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 use App\Models\UserFeed;
+use App\Models\UserPreference;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -16,16 +20,16 @@ Route::get('/', function () {
 })->name('home');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::get('app', \App\Http\Controllers\DashboardController::class)->name('dashboard');
+    Route::get('app', DashboardController::class)->name('dashboard');
 
     // Videos (YouTube only)
-    Route::get('/videos', \App\Http\Controllers\ContentTypeController::class)->name('videos');
+    Route::get('/videos', ContentTypeController::class)->name('videos');
 
     // RSS Feeds
-    Route::get('/feeds', \App\Http\Controllers\ContentTypeController::class)->name('feeds');
+    Route::get('/feeds', ContentTypeController::class)->name('feeds');
 
     // Podcasts
-    Route::get('/podcasts', \App\Http\Controllers\ContentTypeController::class)->name('podcasts');
+    Route::get('/podcasts', ContentTypeController::class)->name('podcasts');
 
     // Categories management route
     Route::get('/categories', function () {
@@ -87,7 +91,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return back()->with('success', 'Category created successfully.');
     });
 
-    Route::put('/categories/{category}', function (\App\Models\Category $category, Request $request) {
+    Route::put('/categories/{category}', function (Category $category, Request $request) {
         if ($category->user_id !== Auth::id()) {
             abort(403);
         }
@@ -103,7 +107,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return back()->with('success', 'Category updated successfully.');
     });
 
-    Route::delete('/categories/{category}', function (\App\Models\Category $category) {
+    Route::delete('/categories/{category}', function (Category $category) {
         if ($category->user_id !== Auth::id()) {
             abort(403);
         }
@@ -126,7 +130,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Feed routes (YouTube channels)
     Route::get('/channels', function () {
         // Get unseen counts per feed using Eloquent
-        $unseenCounts = \App\Models\Entry::query()
+        $unseenCounts = Entry::query()
             ->whereHas('feed.userFeeds', function ($query) {
                 $query->where('user_id', Auth::id());
             })
@@ -183,7 +187,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             });
 
         // Get accurate unseen count using Eloquent
-        $unseenCount = \App\Models\Entry::query()
+        $unseenCount = Entry::query()
             ->whereHas('feed.userFeeds', function ($query) {
                 $query->where('user_id', Auth::id());
             })
@@ -214,6 +218,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
                 $category->feeds = $feeds;
                 $category->user_channels_count = count($feeds);
+
                 return $category;
             }),
             'stats' => $stats,
@@ -236,7 +241,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $feed->category = $userFeedWithCategory?->category;
 
         // Get unseen count for this feed using Eloquent
-        $unseenCount = \App\Models\Entry::query()
+        $unseenCount = Entry::query()
             ->where('feed_id', $feed->id)
             ->whereDoesntHave('entryReads', function ($query) {
                 $query->where('is_read', true);
@@ -313,8 +318,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         $categoryId = $validated['category_id'] ?? null;
 
         // If new_category is provided, create it
-        if (!empty($validated['new_category'])) {
-            $category = \App\Models\Category::firstOrCreate(
+        if (! empty($validated['new_category'])) {
+            $category = Category::firstOrCreate(
                 [
                     'user_id' => Auth::id(),
                     'name' => trim($validated['new_category']),
@@ -343,7 +348,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         }
 
         // Dispatch job to fetch and create feed
-        \App\Jobs\FetchFeedJob::dispatch(
+        FetchFeedJob::dispatch(
             $validated['url'],
             Auth::id(),
             $categoryId
@@ -373,7 +378,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Handle "podcasts" special value
         if ($categoryId === 'podcasts') {
-            $category = \App\Models\Category::firstOrCreate(
+            $category = Category::firstOrCreate(
                 ['user_id' => Auth::id(), 'name' => 'Podcasts'],
                 ['sort_order' => -1]
             );
@@ -382,7 +387,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             $categoryId = null;
         } else {
             // Verify user owns the category if provided
-            $category = \App\Models\Category::where([
+            $category = Category::where([
                 'id' => $categoryId,
                 'user_id' => Auth::id(),
             ])->firstOrFail();
@@ -402,7 +407,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ])->firstOrFail();
 
         // Dispatch job to refresh feed
-        \App\Jobs\FetchFeedJob::dispatch($feed->feed_url);
+        FetchFeedJob::dispatch($feed->feed_url);
 
         return back()->with('success', 'Source refresh has been queued.');
     });
@@ -456,7 +461,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         // Dispatch jobs with a specific queue for better performance
         foreach ($feedsToRefresh as $feed) {
-            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url)
+            FetchFeedJob::dispatch($feed->feed_url)
                 ->onQueue('feeds');
         }
 
@@ -478,7 +483,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'value' => 'required|string',
         ]);
 
-        \App\Models\UserPreference::set(
+        UserPreference::set(
             Auth::id(),
             $validated['key'],
             $validated['value']
@@ -492,7 +497,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::delete('/videos/{entry}/seen', [DashboardController::class, 'markAsUnseen']);
 
-    Route::post('/videos/{entry}/save', function (\App\Models\Entry $entry, Request $request) {
+    Route::post('/videos/{entry}/save', function (Entry $entry, Request $request) {
         // Verify user has access to this entry
         $hasAccess = Auth::user()->feeds()
             ->whereHas('entries', function ($q) use ($entry) {
@@ -515,7 +520,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return back();
     });
 
-    Route::delete('/videos/{entry}/save', function (\App\Models\Entry $entry, Request $request) {
+    Route::delete('/videos/{entry}/save', function (Entry $entry, Request $request) {
         $savedItem = SavedItem::where([
             'user_id' => Auth::id(),
             'entry_id' => $entry->id,

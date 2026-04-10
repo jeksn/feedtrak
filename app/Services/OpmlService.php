@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\FetchFeedJob;
 use App\Models\Category;
 use App\Models\Feed;
 use App\Models\UserFeed;
@@ -262,7 +263,7 @@ class OpmlService
 
             // Don't dispatch job immediately - let it happen in the background
             // Queue initial fetch without blocking - pass userId to create subscription and mark entries as unread
-            \App\Jobs\FetchFeedJob::dispatch($feed->feed_url, $userId, $categoryId)->onQueue('feeds');
+            FetchFeedJob::dispatch($feed->feed_url, $userId, $categoryId)->onQueue('feeds');
         } catch (\Exception $e) {
             Log::error('Failed to import feed', [
                 'feed_url' => $feedData['feed_url'],

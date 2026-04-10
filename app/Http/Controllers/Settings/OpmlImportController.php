@@ -3,23 +3,22 @@
 namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\OpmlImportRequest;
 use App\Services\OpmlService;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use Inertia\Response;
 
 class OpmlImportController extends Controller
 {
-    public function show()
+    public function show(): Response
     {
         return Inertia::render('settings/import');
     }
 
-    public function import(Request $request)
+    public function import(OpmlImportRequest $request): RedirectResponse
     {
-        $request->validate([
-            'opml_file' => 'required|file|mimes:opml,xml,txt|max:10240',
-        ]);
 
         $file = $request->file('opml_file');
         $content = file_get_contents($file->getRealPath());

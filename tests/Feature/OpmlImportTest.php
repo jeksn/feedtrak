@@ -36,7 +36,7 @@ test('users can import feeds from OPML file', function () {
 
     // Act as the user and make the request
     $response = $this->actingAs($user)
-        ->post('/feeds/import-opml', [
+        ->post('/settings/import', [
             'opml_file' => $file,
         ]);
 
@@ -72,11 +72,11 @@ test('users cannot import invalid OPML files', function () {
     $file = UploadedFile::fake()->createWithContent('invalid.opml', $invalidContent);
 
     $response = $this->actingAs($user)
-        ->post('/feeds/import-opml', [
+        ->post('/settings/import', [
             'opml_file' => $file,
         ]);
 
-    $response->assertSessionHasErrors('opml');
+    $response->assertSessionHasErrors('file');
 });
 
 test('OPML import skips already subscribed feeds', function () {
@@ -109,7 +109,7 @@ test('OPML import skips already subscribed feeds', function () {
     $file = UploadedFile::fake()->createWithContent('feeds.opml', $opmlContent);
 
     $response = $this->actingAs($user)
-        ->post('/feeds/import-opml', [
+        ->post('/settings/import', [
             'opml_file' => $file,
         ]);
 

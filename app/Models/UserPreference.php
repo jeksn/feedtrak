@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Scopes\UserScope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class UserPreference extends Model
 {
@@ -24,7 +25,7 @@ class UserPreference extends Model
     /**
      * Get the user that owns the preference.
      */
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
@@ -32,7 +33,7 @@ class UserPreference extends Model
     /**
      * Get a preference value for a user
      */
-    public static function get($userId, $key, $default = null)
+    public static function get(int $userId, string $key, ?string $default = null): ?string
     {
         $preference = static::where('user_id', $userId)
             ->where('key', $key)
@@ -44,7 +45,7 @@ class UserPreference extends Model
     /**
      * Set a preference value for a user
      */
-    public static function set($userId, $key, $value)
+    public static function set(int $userId, string $key, string $value): UserPreference
     {
         return static::updateOrCreate(
             ['user_id' => $userId, 'key' => $key],

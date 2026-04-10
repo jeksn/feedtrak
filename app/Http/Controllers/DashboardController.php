@@ -6,6 +6,7 @@ use App\Models\Entry;
 use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 use App\Models\UserPreference;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

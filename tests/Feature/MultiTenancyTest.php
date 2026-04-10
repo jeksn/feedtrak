@@ -138,22 +138,18 @@ test('entries are shared between users through feeds', function () {
     UserFeed::factory()->create(['user_id' => $user1->id, 'feed_id' => $feed->id]);
     UserFeed::factory()->create(['user_id' => $user2->id, 'feed_id' => $feed->id]);
 
-    $user1Entries = DB::table('entries')
-        ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-        ->join('user_feeds', function ($join) use ($user1) {
-            $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                ->where('user_feeds.user_id', '=', $user1->id);
+    $user1Entries = \App\Models\Entry::query()
+        ->whereHas('feed.userFeeds', function ($query) use ($user1) {
+            $query->where('user_id', $user1->id);
         })
-        ->where('entries.id', $entry->id)
+        ->where('id', $entry->id)
         ->count();
 
-    $user2Entries = DB::table('entries')
-        ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-        ->join('user_feeds', function ($join) use ($user2) {
-            $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                ->where('user_feeds.user_id', '=', $user2->id);
+    $user2Entries = \App\Models\Entry::query()
+        ->whereHas('feed.userFeeds', function ($query) use ($user2) {
+            $query->where('user_id', $user2->id);
         })
-        ->where('entries.id', $entry->id)
+        ->where('id', $entry->id)
         ->count();
 
     expect($user1Entries)->toBe(1);

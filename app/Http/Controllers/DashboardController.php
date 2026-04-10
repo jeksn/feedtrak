@@ -3,11 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Entry;
+use App\Models\SavedItem;
 use App\Models\UserEntryRead;
 use App\Models\UserPreference;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
@@ -36,128 +36,98 @@ class DashboardController extends Controller
         $page = request()->get('page', 1);
         $perPage = 20;
 
-        // Get all entries query
-        $entriesQuery = DB::table('entries')
-            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->join('user_feeds', function ($join) use ($user) {
-                $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                    ->where('user_feeds.user_id', '=', $user->id);
+        // Get all entries query using Eloquent
+        $entriesQuery = Entry::query()
+            ->whereHas('feed.userFeeds', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
             })
-            ->leftJoin('user_entry_reads', function ($join) use ($user) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', $user->id);
-            })
-            ->leftJoin('saved_items', function ($join) use ($user) {
-                $join->on('saved_items.entry_id', '=', 'entries.id')
-                    ->where('saved_items.user_id', '=', $user->id);
-            })
-            ->select([
-                'entries.id',
-                'entries.title',
-                'entries.content',
-                'entries.excerpt',
-                'entries.url',
-                'entries.thumbnail_url',
-                'entries.author',
-                'entries.published_at',
-                'entries.feed_id',
-                'feeds.title as channel_title',
-                'feeds.url as channel_url',
-                'feeds.content_type',
-                'user_entry_reads.id as seen_id',
-                'user_entry_reads.is_read',
-                'saved_items.id as saved_id',
-            ])
-            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
-            ->orderBy('entries.published_at', 'desc');
+            ->with(['feed', 'entryReads', 'savedItems'])
+            ->when($contentType, fn ($q) => $q->whereHas('feed', fn ($q) => $q->where('content_type', $contentType)))
+            ->orderBy('published_at', 'desc');
 
         // Get paginated entries
         $paginatedVideos = $entriesQuery->paginate($perPage, ['*'], 'page', $page);
 
         // Format entries for frontend
-        $allVideos = $paginatedVideos->getCollection()->map(function ($video) {
+        $allVideos = $paginatedVideos->getCollection()->map(function ($entry) {
             // Clean up any malformed UTF-8
-            $title = $this->cleanUtf8($video->title);
-            $content = $this->cleanUtf8($video->content);
-            $excerpt = $this->cleanUtf8($video->excerpt);
-            $author = $this->cleanUtf8($video->author);
-            $channelTitle = $this->cleanUtf8($video->channel_title);
+            $title = $this->cleanUtf8($entry->title);
+            $content = $this->cleanUtf8($entry->content);
+            $excerpt = $this->cleanUtf8($entry->excerpt);
+            $author = $this->cleanUtf8($entry->author);
+            $channelTitle = $this->cleanUtf8($entry->feed->title ?? '');
+            $channelUrl = $entry->feed->url ?? '';
+
+            $entryRead = $entry->entryReads->first();
+            $savedItem = $entry->savedItems->first();
 
             return [
-                'id' => $video->id,
+                'id' => $entry->id,
                 'title' => $title,
                 'content' => $content,
                 'excerpt' => $excerpt,
-                'url' => $video->url,
-                'thumbnail_url' => $video->thumbnail_url,
+                'url' => $entry->url,
+                'thumbnail_url' => $entry->thumbnail_url,
                 'author' => $author,
-                'published_at' => $video->published_at,
+                'published_at' => $entry->published_at,
                 'channel' => [
-                    'id' => $video->feed_id,
+                    'id' => $entry->feed_id,
                     'title' => $channelTitle,
-                    'url' => $video->channel_url,
+                    'url' => $channelUrl,
                 ],
-                'content_type' => $video->content_type ?? 'youtube',
-                'is_seen' => $video->is_read ?? false,
-                'is_saved' => $video->saved_id !== null,
-                'seen_id' => $video->seen_id,
-                'saved_id' => $video->saved_id,
+                'content_type' => $entry->feed->content_type ?? 'youtube',
+                'is_seen' => $entryRead?->is_read ?? false,
+                'is_saved' => $savedItem !== null,
+                'seen_id' => $entryRead?->id,
+                'saved_id' => $savedItem?->id,
             ];
         });
 
-        // Get unseen count (no limit for accurate count)
-        $unseenCount = DB::table('entries')
-            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->join('user_feeds', function ($join) use ($user) {
-                $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                    ->where('user_feeds.user_id', '=', $user->id);
+        // Get unseen count using Eloquent
+        $unseenCount = Entry::query()
+            ->whereHas('feed.userFeeds', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
             })
-            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
-            ->leftJoin('user_entry_reads', function ($join) use ($user) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', $user->id);
+            ->whereDoesntHave('entryReads', function ($query) {
+                $query->where('is_read', true);
             })
-            ->where(fn ($q) => $q->whereNull('user_entry_reads.id')->orWhere('user_entry_reads.is_read', '=', false))
             ->count();
 
-        // Get unseen entries with pagination
+        // Get unseen entries with pagination using Eloquent
         $unseenPage = request()->get('unseen_page', 1);
-        $unseenPaginated = DB::table('entries')
-            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->join('user_feeds', function ($join) use ($user) {
-                $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                    ->where('user_feeds.user_id', '=', $user->id);
+        $unseenPaginated = Entry::query()
+            ->whereHas('feed.userFeeds', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
             })
-            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
-            ->leftJoin('user_entry_reads', function ($join) use ($user) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', $user->id);
+            ->when($contentType, fn ($q) => $q->whereHas('feed', fn ($q) => $q->where('content_type', $contentType)))
+            ->whereDoesntHave('entryReads', function ($query) {
+                $query->where('is_read', true);
             })
-            ->where(fn ($q) => $q->whereNull('user_entry_reads.id')->orWhere('user_entry_reads.is_read', '=', false))
-            ->select('entries.*', 'feeds.title as channel_title', 'feeds.url as channel_url', 'feeds.content_type')
-            ->orderBy('entries.published_at', 'desc')
+            ->with(['feed', 'savedItems'])
+            ->orderBy('published_at', 'desc')
             ->paginate($perPage, ['*'], 'unseen_page', $unseenPage);
 
-        $unseenVideos = $unseenPaginated->getCollection()->map(function ($video) {
+        $unseenVideos = $unseenPaginated->getCollection()->map(function ($entry) {
+            $savedItem = $entry->savedItems->first();
             return [
-                'id' => $video->id,
-                'title' => $this->cleanUtf8($video->title),
-                'content' => $this->cleanUtf8($video->content),
-                'excerpt' => $this->cleanUtf8($video->excerpt),
-                'url' => $video->url,
-                'thumbnail_url' => $video->thumbnail_url,
-                'author' => $this->cleanUtf8($video->author),
-                'published_at' => $video->published_at,
+                'id' => $entry->id,
+                'title' => $this->cleanUtf8($entry->title),
+                'content' => $this->cleanUtf8($entry->content),
+                'excerpt' => $this->cleanUtf8($entry->excerpt),
+                'url' => $entry->url,
+                'thumbnail_url' => $entry->thumbnail_url,
+                'author' => $this->cleanUtf8($entry->author),
+                'published_at' => $entry->published_at,
                 'channel' => [
-                    'id' => $video->feed_id,
-                    'title' => $this->cleanUtf8($video->channel_title),
-                    'url' => $video->channel_url,
+                    'id' => $entry->feed_id,
+                    'title' => $this->cleanUtf8($entry->feed->title ?? ''),
+                    'url' => $entry->feed->url ?? '',
                 ],
-                'content_type' => $video->content_type ?? 'youtube',
+                'content_type' => $entry->feed->content_type ?? 'youtube',
                 'is_seen' => false,
-                'is_saved' => false,
+                'is_saved' => $savedItem !== null,
                 'seen_id' => null,
-                'saved_id' => null,
+                'saved_id' => $savedItem?->id,
             ];
         });
 
@@ -169,57 +139,37 @@ class DashboardController extends Controller
             'has_more' => $unseenPaginated->hasMorePages(),
         ];
 
-        // Get saved entries with pagination
+        // Get saved entries with pagination using Eloquent
         $savedPage = request()->get('saved_page', 1);
-        $savedPaginated = DB::table('saved_items')
-            ->join('entries', 'entries.id', '=', 'saved_items.entry_id')
-            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->when($contentType, fn ($q) => $q->where('feeds.content_type', $contentType))
-            ->leftJoin('user_entry_reads', function ($join) use ($user) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', $user->id);
-            })
-            ->where('saved_items.user_id', '=', $user->id)
-            ->select([
-                'entries.id',
-                'entries.title',
-                'entries.content',
-                'entries.excerpt',
-                'entries.url',
-                'entries.thumbnail_url',
-                'entries.author',
-                'entries.published_at',
-                'entries.feed_id',
-                'feeds.title as channel_title',
-                'feeds.url as channel_url',
-                'feeds.content_type',
-                'user_entry_reads.id as seen_id',
-                'user_entry_reads.is_read',
-                'saved_items.id as saved_id',
-            ])
-            ->orderBy('saved_items.created_at', 'desc')
+        $savedPaginated = SavedItem::query()
+            ->where('user_id', $user->id)
+            ->when($contentType, fn ($q) => $q->whereHas('entry.feed', fn ($q) => $q->where('content_type', $contentType)))
+            ->with(['entry.feed', 'entry.entryReads'])
+            ->orderByDesc('created_at')
             ->paginate($perPage, ['*'], 'saved_page', $savedPage);
 
         $savedVideos = $savedPaginated->getCollection()->map(function ($savedItem) {
+            $entry = $savedItem->entry;
+            $entryRead = $entry->entryReads->first();
             return [
-                'id' => $savedItem->id,
-                'title' => $this->cleanUtf8($savedItem->title),
-                'content' => $this->cleanUtf8($savedItem->content),
-                'excerpt' => $this->cleanUtf8($savedItem->excerpt),
-                'url' => $savedItem->url,
-                'thumbnail_url' => $savedItem->thumbnail_url,
-                'author' => $this->cleanUtf8($savedItem->author),
-                'published_at' => $savedItem->published_at,
+                'id' => $entry->id,
+                'title' => $this->cleanUtf8($entry->title),
+                'content' => $this->cleanUtf8($entry->content),
+                'excerpt' => $this->cleanUtf8($entry->excerpt),
+                'url' => $entry->url,
+                'thumbnail_url' => $entry->thumbnail_url,
+                'author' => $this->cleanUtf8($entry->author),
+                'published_at' => $entry->published_at,
                 'channel' => [
-                    'id' => $savedItem->feed_id,
-                    'title' => $this->cleanUtf8($savedItem->channel_title),
-                    'url' => $savedItem->channel_url,
+                    'id' => $entry->feed_id,
+                    'title' => $this->cleanUtf8($entry->feed->title ?? ''),
+                    'url' => $entry->feed->url ?? '',
                 ],
-                'content_type' => $savedItem->content_type ?? 'youtube',
-                'is_seen' => $savedItem->is_read ?? false,
+                'content_type' => $entry->feed->content_type ?? 'youtube',
+                'is_seen' => $entryRead?->is_read ?? false,
                 'is_saved' => true,
-                'seen_id' => $savedItem->seen_id,
-                'saved_id' => $savedItem->saved_id,
+                'seen_id' => $entryRead?->id,
+                'saved_id' => $savedItem->id,
             ];
         });
 

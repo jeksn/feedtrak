@@ -125,24 +125,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Feed routes (YouTube channels)
     Route::get('/channels', function () {
-        // Get unseen counts (entries with no read record OR is_read = false)
-        $unseenCounts = DB::table('entries')
-            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->join('user_feeds', function ($join) {
-                $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                    ->where('user_feeds.user_id', '=', Auth::id());
+        // Get unseen counts per feed using Eloquent
+        $unseenCounts = \App\Models\Entry::query()
+            ->whereHas('feed.userFeeds', function ($query) {
+                $query->where('user_id', Auth::id());
             })
-            ->leftJoin('user_entry_reads', function ($join) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', Auth::id());
+            ->whereDoesntHave('entryReads', function ($query) {
+                $query->where('is_read', true);
             })
-            ->where(function ($query) {
-                $query->whereNull('user_entry_reads.id')
-                    ->orWhere('user_entry_reads.is_read', '=', false);
-            })
-            ->groupBy('feeds.id')
-            ->selectRaw('feeds.id, COUNT(*) as unseen_count')
-            ->pluck('unseen_count', 'feeds.id');
+            ->selectRaw('feed_id, COUNT(*) as unseen_count')
+            ->groupBy('feed_id')
+            ->pluck('unseen_count', 'feed_id');
 
         $feeds = Auth::user()->feeds()
             ->with(['entries' => function ($query) {
@@ -189,20 +182,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 return $category;
             });
 
-        // Get accurate unseen count (entries with no read record OR is_read = false)
-        $unseenCount = DB::table('entries')
-            ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-            ->join('user_feeds', function ($join) {
-                $join->on('user_feeds.feed_id', '=', 'feeds.id')
-                    ->where('user_feeds.user_id', '=', Auth::id());
+        // Get accurate unseen count using Eloquent
+        $unseenCount = \App\Models\Entry::query()
+            ->whereHas('feed.userFeeds', function ($query) {
+                $query->where('user_id', Auth::id());
             })
-            ->leftJoin('user_entry_reads', function ($join) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', Auth::id());
-            })
-            ->where(function ($query) {
-                $query->whereNull('user_entry_reads.id')
-                    ->orWhere('user_entry_reads.is_read', '=', false);
+            ->whereDoesntHave('entryReads', function ($query) {
+                $query->where('is_read', true);
             })
             ->count();
 
@@ -249,16 +235,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         $feed->category = $userFeedWithCategory?->category;
 
-        // Get unseen count for this feed (entries with no read record OR is_read = false)
-        $unseenCount = DB::table('entries')
-            ->where('entries.feed_id', $feed->id)
-            ->leftJoin('user_entry_reads', function ($join) {
-                $join->on('user_entry_reads.entry_id', '=', 'entries.id')
-                    ->where('user_entry_reads.user_id', '=', Auth::id());
-            })
-            ->where(function ($query) {
-                $query->whereNull('user_entry_reads.id')
-                    ->orWhere('user_entry_reads.is_read', '=', false);
+        // Get unseen count for this feed using Eloquent
+        $unseenCount = \App\Models\Entry::query()
+            ->where('feed_id', $feed->id)
+            ->whereDoesntHave('entryReads', function ($query) {
+                $query->where('is_read', true);
             })
             ->count();
 

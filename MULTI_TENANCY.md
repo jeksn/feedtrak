@@ -77,18 +77,16 @@ This uses the `user_feeds` pivot table to filter global feeds to the user's subs
 
 ### Viewing Entries
 
-Entries are filtered through the user's feed subscriptions:
+Entries are filtered through the user's feed subscriptions using Eloquent:
 
 ```php
-DB::table('entries')
-    ->join('feeds', 'feeds.id', '=', 'entries.feed_id')
-    ->join('user_feeds', function ($join) {
-        $join->on('user_feeds.feed_id', '=', 'feeds.id')
-            ->where('user_feeds.user_id', '=', Auth::id());
+Entry::query()
+    ->whereHas('feed.userFeeds', function ($query) {
+        $query->where('user_id', Auth::id());
     })
 ```
 
-This ensures users only see entries from feeds they've subscribed to.
+This ensures users only see entries from feeds they've subscribed to, leveraging Laravel's ORM for better maintainability and type safety.
 
 ## Production Readiness
 

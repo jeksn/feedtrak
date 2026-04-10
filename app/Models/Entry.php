@@ -35,4 +35,9 @@ class Entry extends Model
     {
         return $this->hasMany(SavedItem::class);
     }
+
+    public function entryReads(): HasMany
+    {
+        return $this->hasMany(UserEntryRead::class);
+    }
 }

@@ -71,13 +71,14 @@ export function FeedForm({ categories }: FeedFormProps) {
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const categoryMode = form.watch("category_mode");
 
   const onSubmit = (data: FormData) => {
     console.log('Submitting feed form:', data);
     setIsSubmitting(true);
 
-    const payload: any = { url: data.url };
+    const payload: { url: string; category_id?: string; new_category?: string } = { url: data.url };
 
     if (data.category_mode === "new" && data.new_category?.trim()) {
       payload.new_category = data.new_category.trim();

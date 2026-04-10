@@ -24,7 +24,7 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { ArrowLeft, CheckCheck, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCheck, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface Channel {

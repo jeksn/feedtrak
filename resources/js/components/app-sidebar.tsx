@@ -20,7 +20,6 @@ import {
     Mic,
     Rss,
     Settings,
-    Tag,
     Upload,
     Youtube,
 } from 'lucide-react';

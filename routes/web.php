@@ -21,7 +21,9 @@ Route::get('/', function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('app', DashboardController::class)->name('dashboard');
+});
 
+Route::middleware('auth')->group(function () {
     // Videos (YouTube only)
     Route::get('/videos', ContentTypeController::class)->name('videos');
 
